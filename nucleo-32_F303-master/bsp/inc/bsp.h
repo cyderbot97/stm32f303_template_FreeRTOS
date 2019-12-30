@@ -1,17 +1,23 @@
+/*
+ * bsp.h
+ *
+ *  Created on: 5 août 2017
+ *      Author: Laurent
+ */
+
 #ifndef BSP_INC_BSP_H_
 #define BSP_INC_BSP_H_
 
-#include "stm32f3xx.h"
+#include "main.h"
 
 /*
  * LED driver functions
  */
 
-void	BSP_LED_Init	(void);
-void	BSP_LED_On		(void);
-void	BSP_LED_Off		(void);
-void	BSP_LED_Toggle	(void);
-
+void adc_init	(void);
+void servo_init (void);
+void uart_init(void);
+void BSP_NVIC_Init(void);
 
 /*
  * Debug Console driver functions

@@ -2,6 +2,10 @@
 #include "main.h"
 #include "bsp.h"
 #include "delay.h"
+#include "math.h"
+#include "MadgwickAHRS.h"
+#include "spi.h"
+#include "mpu9250.h"
 
 #include "FreeRTOSConfig.h"
 #include "FreeRTOS.h"
@@ -12,80 +16,185 @@
 #include "event_groups.h"
 #include "stream_buffer.h"
 
-
-/*
- * Local Static Functions
- */
-
-
 static uint8_t SystemClock_Config(void);
 
+uint8_t	  rx_dma_buffer[16];
 
-/*
- * Project Entry Point
- */
 
-void vTask1 	(void *pvParameters);
-void vTask2 	(void *pvParameters);
+uint16_t A;
+uint16_t B;
+uint16_t consigne_B;
+uint16_t inclinaison;
+
+
+float a,b,c;
+
+float roll,pitch,yaw, tampon;
+float kp,ki;
+
+float error, integral, output;
+
+int8_t mpu_data[14];
+
+int16_t raw_ax, raw_ay, raw_az,imu_temp, raw_gx, raw_gy, raw_gz;
+float imu_ax, imu_ay, imu_az,imu_gx,imu_gy,imu_gz;
+float consigne;
+
+void Obtenir_Inclinaison 	(void *pvParameters);
+void Signal_Consigne 	(void *pvParameters);
 
 int main()
 {
-	// Configure System Clock (64MHz/72MHz depending on HSI/HSE selection)
 	SystemClock_Config();
 
-	// Initialize LED
-	BSP_LED_Init();
+	a = 0 ;
+	b = 0 ;
+	c = 0 ;
+	consigne = 0;
 
-	// Initialize Debug Console
+	kp = 0.9;
+	ki = 10;
+
+	/*
+	 * Initialisation
+	 */
+
+	//BSP_LED_Init();
+	//delay_ms(100);
+
+	BSP_SPI1_Init();
+	delay_ms(100);
+
+	BSP_MPU9250_Init();
+	delay_ms(100);
+
 	BSP_Console_Init();
+	delay_ms(100);
+
+	servo_init();
+	delay_ms(100);
+
 	my_printf("\r\nConsole Ready!\r\n");
-	my_printf("SYSCLK = %d Hz\r\n", SystemCoreClock);
 
 
-
-	xTaskCreate(vTask1, "Task_1", 256, NULL, 1, NULL);
-	xTaskCreate(vTask2, "Task_2", 256, NULL, 2, NULL);
+	xTaskCreate(Obtenir_Inclinaison, "Obtenir_Inclinaison", 256, NULL, 1, NULL);
+	xTaskCreate(Signal_Consigne, "Signal_Consigne", 256, NULL, 2, NULL);
 
 	// Start the Scheduler
 	vTaskStartScheduler();
-
-
 
 	// Loop forever
 	while(1)
 	{
 	}
 }
-/*
- *	Task1 toggles LED every 300ms
- */
-void vTask1 (void *pvParameters)
-{
-	while(1)
-	{
-		BSP_LED_Toggle();
-		vTaskDelay(300);
+
+void Signal_Consigne (void *pvParameters){
+
+	float min = -15;
+	float max = 15;
+	int t = 5; // temps entre 2 valeurs
+
+	while(1){
+
+		for(float i = min; i < max; i = i + 0.1){
+			consigne = i;
+			vTaskDelay(t);
+		}
+		for(float i = max; i > min; i = i - 0.1){
+			consigne = i;
+			vTaskDelay(t);
+		}
 	}
 }
 
-
-/*
- *	Task2 sends a message to console every 1s
- */
-void vTask2 (void *pvParameters)
+void Obtenir_Inclinaison (void *pvParameters)
 {
-	uint16_t count;
+	while(1){
+		//BSP_LED_On(); //verifier le temps de boucle
 
-	count = 0;
+		BSP_SPI_Read(MPUREG_ACCEL_XOUT_H, mpu_data, 14);
 
-	while(1)
-	{
-		my_printf("Hello %2d from task2\r\n", count);
-		count++;
-		vTaskDelay(1000);
+		raw_ax = ((int16_t)mpu_data[0]<<8) | (int16_t)mpu_data[1];
+		raw_ay = ((int16_t)mpu_data[2]<<8) | (int16_t)mpu_data[3];
+		raw_az = ((int16_t)mpu_data[4]<<8) | (int16_t)mpu_data[5];
+
+		// Scale Accelerometers with offset cancellation
+		imu_ax = raw_ax * MPU9250A_2g;
+		imu_ay = raw_ay * MPU9250A_2g;
+		imu_az = raw_az * MPU9250A_2g;
+
+		// Record temperature
+		imu_temp = ((int16_t)mpu_data[6]<<8) | (int16_t)mpu_data[7];
+
+		raw_gx = ((int16_t)mpu_data[8]<<8)  | (int16_t)mpu_data[9];
+		raw_gy = ((int16_t)mpu_data[10]<<8) | (int16_t)mpu_data[11];
+		raw_gz = ((int16_t)mpu_data[12]<<8) | (int16_t)mpu_data[13];
+
+		// Scale Gyros with offset cancellation
+		imu_gx = raw_gx * MPU9250G_500dps;
+		imu_gy = raw_gy * MPU9250G_500dps;
+		imu_gz = raw_gz * MPU9250G_500dps;
+
+
+		MadgwickAHRSupdateIMU(imu_gx, imu_gy, imu_gz, imu_ax, imu_ay, imu_az);
+
+		roll = atan2f(2.0f * (q0*q1 + q2*q3), q0*q0 - q1*q1 - q2*q2 + q3*q3)*180/3.14;
+
+		error = consigne - roll;
+
+		integral = integral + error*0.006;
+
+		output = kp*error + ki*integral;
+
+		consigne_B = output*1000/120 + 1500;
+
+		kinematic_bascule(consigne_B);
+
+		//BSP_LED_Off();
+
+		vTaskDelay(5);
 	}
 }
 
+void kinematic_bascule(uint16_t inclinaison_pulse){
+
+	//
+	//calculate pulse width for 2 bascule motor
+	//state machine
+
+	if((inclinaison_pulse <= 1500) && (inclinaison_pulse >= 1000)){
+
+		//calcul
+		A = 1500 - (1500-inclinaison_pulse) * 3;
+		B = inclinaison_pulse;
+
+		if(A<1000){
+			A = 1000;
+		}
+
+		TIM3->CCR1 = A;
+		TIM3->CCR2 = B;
+
+	}else if((inclinaison_pulse <= 2000) && (inclinaison_pulse >= 1500)){ // 1650 = 78 deg
+
+		//Calcul
+		B = 1500 + (inclinaison_pulse - 1500)*3;
+		A = inclinaison_pulse;
+
+		if(B>2000) {
+			B = 2000;
+		}
+
+		//set PWM motor value
+		TIM3->CCR2 = B;
+		TIM3->CCR1 = A;
+
+	}else {
+
+	}
+
+}
 
 /*
  * 	Clock configuration for the Nucleo STM32F303K8 board
