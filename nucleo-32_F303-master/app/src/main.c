@@ -42,6 +42,7 @@ float consigne;
 
 void Obtenir_Inclinaison 	(void *pvParameters);
 void Signal_Consigne 	(void *pvParameters);
+float servo1,servo2,servo3,servo4,valeur;
 
 int main()
 {
@@ -52,8 +53,8 @@ int main()
 	c = 0 ;
 	consigne = 0;
 
-	kp = 0.9;
-	ki = 10;
+	kp = 0.6;
+	ki = 7;
 
 	/*
 	 * Initialisation
@@ -78,7 +79,7 @@ int main()
 
 
 	xTaskCreate(Obtenir_Inclinaison, "Obtenir_Inclinaison", 256, NULL, 1, NULL);
-	xTaskCreate(Signal_Consigne, "Signal_Consigne", 256, NULL, 2, NULL);
+	xTaskCreate(Signal_Consigne, "Signal_Consigne", 256, NULL, 1, NULL);
 
 	// Start the Scheduler
 	vTaskStartScheduler();
@@ -91,21 +92,53 @@ int main()
 
 void Signal_Consigne (void *pvParameters){
 
-	float min = -15;
-	float max = 15;
-	int t = 5; // temps entre 2 valeurs
+	float posA = 1500;
+	float posB = 1500;
+	float posC = 1500;
+	float posD = 1500;
+
+
+	float F = 250;
+	float R = 150;
+	float dt = 15;
+
+	float t;
+
+	float pulse, pulse2;
 
 	while(1){
 
-		for(float i = min; i < max; i = i + 0.1){
-			consigne = i;
-			vTaskDelay(t);
+		pulse=F*cos(t/100.0*2.0*3.14);
+		pulse2=R*sin(t/100.0*2.0*3.14);
+
+		if(t>100){
+			t=0;
 		}
-		for(float i = max; i > min; i = i - 0.1){
-			consigne = i;
-			vTaskDelay(t);
-		}
+
+		/*
+		valeur = 1500 + pulse;
+		error = valeur - (1500 + roll*500/60);
+		integral = integral + error*dt;
+		pulse = pulse + 0.7*error + 0*integral;
+*/
+		servo1 = posA - pulse2;
+		servo2 = posB-75+pulse;
+		servo3 = posC - pulse2;
+		servo4 = posD+75+pulse;
+
+
+
+		t++;
+		vTaskDelay(dt);
+
+		TIM3->CCR2 = servo4;
+		TIM3->CCR1 = servo2;
+		TIM3->CCR3 = servo3;
+		TIM3->CCR4 = servo1;
+
 	}
+
+
 }
 
 void Obtenir_Inclinaison (void *pvParameters)
@@ -141,15 +174,15 @@ void Obtenir_Inclinaison (void *pvParameters)
 
 		roll = atan2f(2.0f * (q0*q1 + q2*q3), q0*q0 - q1*q1 - q2*q2 + q3*q3)*180/3.14;
 
-		error = consigne - roll;
+		//error = inclinaison - roll;
 
-		integral = integral + error*0.006;
+		//integral = integral + error*0.006;
 
-		output = kp*error + ki*integral;
+		//output = kp*error + ki*integral;
 
-		consigne_B = output*1000/120 + 1500;
+		//consigne_B = output*1000/120 + 1500;
 
-		kinematic_bascule(consigne_B);
+		//kinematic_bascule(consigne_B);
 
 		//BSP_LED_Off();
 
@@ -161,12 +194,15 @@ void kinematic_bascule(uint16_t inclinaison_pulse){
 
 	//
 	//calculate pulse width for 2 bascule motor
+
 	//state machine
+
+	float coeff = 3.5;
 
 	if((inclinaison_pulse <= 1500) && (inclinaison_pulse >= 1000)){
 
 		//calcul
-		A = 1500 - (1500-inclinaison_pulse) * 3;
+		A = 1500 - (1500-inclinaison_pulse) * coeff;
 		B = inclinaison_pulse;
 
 		if(A<1000){
@@ -179,7 +215,7 @@ void kinematic_bascule(uint16_t inclinaison_pulse){
 	}else if((inclinaison_pulse <= 2000) && (inclinaison_pulse >= 1500)){ // 1650 = 78 deg
 
 		//Calcul
-		B = 1500 + (inclinaison_pulse - 1500)*3;
+		B = 1500 + (inclinaison_pulse - 1500)*coeff;
 		A = inclinaison_pulse;
 
 		if(B>2000) {
