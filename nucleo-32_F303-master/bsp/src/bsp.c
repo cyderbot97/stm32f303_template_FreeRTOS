@@ -5,64 +5,26 @@
  *      Author: Laurent
  */
 
-#include "stm32f3xx.h"
-#include "bsp.h"
+#include "main.h"
 
 
-void BSP_NVIC_Init(){
+extern uint8_t irq;
+extern xSemaphoreHandle sem_new_data_uart;
 
-	NVIC_SetPriority(USART1_IRQn, 1);
-	NVIC_EnableIRQ(USART1_IRQn);
+void USART1_IRQHandler(){
 
-	NVIC_SetPriority(TIM6_DAC_IRQn, 2);
-	NVIC_EnableIRQ(TIM6_DAC_IRQn);
+	portBASE_TYPE xHigherPriorityTaskWoken = pdFALSE;
 
-}
-void BSP_TIMER_Timebase_Init()
-{
-	// Enable TIM6 clock
-	RCC->APB1ENR |= RCC_APB1ENR_TIM6EN;
+	if ((USART1->ISR & USART_ISR_RTOF) == USART_ISR_RTOF)
+		{
+			// Clear the interrupt pending bit
+			USART1->ICR |= USART_ICR_RTOCF;
 
-	// Reset TIM6 configuration
-	TIM6->CR1 = 0x0000;
-	TIM6->CR2 = 0x0000;
+			xSemaphoreGiveFromISR(sem_new_data_uart, &xHigherPriorityTaskWoken);
 
-	// Set TIM6 prescaler
-	// Fck = 64MHz -> /64 = 1MHz counting frequency
-	TIM6->PSC = (uint16_t) 64 -1;
+			portEND_SWITCHING_ISR(xHigherPriorityTaskWoken);
+		}
 
-	// Set TIM6 auto-reload register for 1.5ms
-	TIM6->ARR = (uint16_t) 1500 -1;
-
-	// Enable auto-reload preload
-	TIM6->CR1 |= TIM_CR1_ARPE;
-
-	// Enable Interrupt upon Update Event
-	TIM6->DIER |= TIM_DIER_UIE;
-
-	// Start TIM6 counter
-	TIM6->CR1 |= TIM_CR1_CEN;
-
-
-	RCC->APB1ENR |= RCC_APB1ENR_TIM7EN;
-
-	// Reset TIM6 configuration
-	TIM7->CR1 = 0x0000;
-	TIM7->CR2 = 0x0000;
-
-	// Set TIM6 prescaler
-	// Fck = 64MHz -> /64 = 1kHz counting frequency
-	TIM7->PSC = (uint16_t) 64000 -1;
-
-	// Set TIM6 auto-reload register for 1s
-	TIM7->ARR = (uint16_t) 10000;
-
-	// Enable auto-reload preload
-	TIM7->CR1 |= TIM_CR1_ARPE;
-
-
-	// Start TIM6 counter
-	TIM7->CR1 |= TIM_CR1_CEN;
 }
 
 extern uint8_t rx_dma_buffer[16];
@@ -72,13 +34,21 @@ void uart_init()
 	// Enable GPIOA clock
 	RCC->AHBENR |= RCC_AHBENR_GPIOAEN;
 
-	// Configure PA2 and PA3 as Alternate function
-	GPIOA->MODER &= ~(GPIO_MODER_MODER9 | GPIO_MODER_MODER10);
-	GPIOA->MODER |=  (0x02 << GPIO_MODER_MODER9_Pos) | (0x02 << GPIO_MODER_MODER10_Pos);
+	// Configure PA9 and PA10 as Alternate function
+	//GPIOA->MODER &= ~(GPIO_MODER_MODER9 | GPIO_MODER_MODER10);
+	//GPIOA->MODER |=  (0x02 << GPIO_MODER_MODER9_Pos) | (0x02 << GPIO_MODER_MODER10_Pos);
 
-	// Set PA9 and PA3 to AF10 (USART1)
-	GPIOA->AFR[1] &= ~(0x00000FF0);
-	GPIOA->AFR[1] |=  (0x00000770);
+	// Configure PB6 and PB7 as Alternate function 7
+	GPIOB->MODER &= ~(GPIO_MODER_MODER6 | GPIO_MODER_MODER7);
+	GPIOB->MODER |=  (0x02 << GPIO_MODER_MODER6_Pos) | (0x02 << GPIO_MODER_MODER7_Pos);
+
+	// Set PA9 and PA10 to AF10 (USART1)
+	//GPIOA->AFR[1] &= ~(0x00000FF0);
+	//GPIOA->AFR[1] |=  (0x00000770);
+
+	// Set PB7 and PB6 to AF7 (USART1)
+	GPIOB->AFR[0] &= ~(0xFF000000);
+	GPIOB->AFR[0] |=  (0x77000000);
 
 	// Enable USART1 clock
 	RCC -> APB2ENR |= RCC_APB2ENR_USART1EN;
@@ -145,11 +115,34 @@ void uart_init()
 	USART1->CR2 |= USART_CR2_RTOEN;
 	USART1->CR1 |= USART_CR1_RTOIE;
 
-
-
-	// Enable USART2
+	// Enable USART1
 	USART1->CR1 |= USART_CR1_UE;
 }
+
+/*
+void BSP_TIMER_Timebase_Init()
+{
+	RCC->APB1ENR |= RCC_APB1ENR_TIM7EN;
+
+	// Reset TIM6 configuration
+	TIM7->CR1 = 0x0000;
+	TIM7->CR2 = 0x0000;
+
+	// Set TIM6 prescaler
+	// Fck = 64MHz -> /64 = 1kHz counting frequency
+	TIM7->PSC = (uint16_t) 64000 -1;
+
+	// Set TIM6 auto-reload register for 1s
+	TIM7->ARR = (uint16_t) 10000;
+
+	// Enable auto-reload preload
+	TIM7->CR1 |= TIM_CR1_ARPE;
+
+
+	// Start TIM6 counter
+	TIM7->CR1 |= TIM_CR1_CEN;
+}
+*/
 
 void BSP_Console_Init()
 {
@@ -263,7 +256,7 @@ void adc_init(void)
 
 }
 
-void servo_init(void)
+void BSP_SERVO_INIT(void)
 {
 	//Enable TIMER clock
 	RCC -> APB2ENR |= RCC_APB2ENR_TIM1EN;
@@ -276,15 +269,15 @@ void servo_init(void)
 	RCC->AHBENR |= RCC_AHBENR_GPIOBEN;
 
 	//
-	GPIOA->MODER &= ~(GPIO_MODER_MODER8_Msk | GPIO_MODER_MODER11_Msk );
-	GPIOA->MODER |= (0x02<<GPIO_MODER_MODER8_Pos)| (0x02<<GPIO_MODER_MODER11_Pos);
+	GPIOA->MODER &= ~(GPIO_MODER_MODER8_Msk | GPIO_MODER_MODER9_Msk |GPIO_MODER_MODER11_Msk );
+	GPIOA->MODER |= (0x02<<GPIO_MODER_MODER8_Pos)| (0x02<<GPIO_MODER_MODER9_Pos) | (0x02<<GPIO_MODER_MODER11_Pos);
 
 	GPIOB->MODER &= ~(GPIO_MODER_MODER0_Msk | GPIO_MODER_MODER1_Msk | GPIO_MODER_MODER4_Msk| GPIO_MODER_MODER5_Msk );
 	GPIOB->MODER |= (0x02<<GPIO_MODER_MODER0_Pos)| (0x02<<GPIO_MODER_MODER1_Pos)| (0x02<<GPIO_MODER_MODER4_Pos)| (0x02<<GPIO_MODER_MODER5_Pos);
 
 	//Set alternate function
-	GPIOA->AFR[1] &= ~(0x0000F00F);
-	GPIOA->AFR[1] |=  (0x0000B006);
+	GPIOA->AFR[1] &= ~(0x0000F0FF);
+	GPIOA->AFR[1] |=  (0x0000B066);
 
 	GPIOB->AFR[0] &= ~(0x00FF00FF);
 	GPIOB->AFR[0] |=  (0x00220022);
@@ -330,15 +323,15 @@ void servo_init(void)
 
 
 	// Set default PWM values
-	TIM1->CCR1 = 1500;
-	TIM1->CCR2 = 1500;
-	TIM1->CCR3 = 1500;
-	TIM1->CCR4 = 1500;
+	TIM1->CCR1 = 1000; // right arm
+	TIM1->CCR2 = 2000; // left arm
+	TIM1->CCR3 = 0;
+	TIM1->CCR4 = 0; // head
 
-	TIM3->CCR1 = 1500;
-	TIM3->CCR2 = 1500;
-	TIM3->CCR3 = 1500;
-	TIM3->CCR4 = 1500;
+	TIM3->CCR1 = 0;
+	TIM3->CCR2 = 0;
+	TIM3->CCR3 = 0;
+	TIM3->CCR4 = 0;
 
 	// Enable Outputs
 	TIM1->CCER |= TIM_CCER_CC1E | TIM_CCER_CC2E | TIM_CCER_CC3E | TIM_CCER_CC4E;
@@ -352,6 +345,7 @@ void servo_init(void)
 	// Enable TIM3 and TIM1
 	TIM1->CR1 |= TIM_CR1_CEN;
 	TIM3->CR1 |= TIM_CR1_CEN;
+
 }
 
 void BSP_LED_Init()
@@ -389,3 +383,129 @@ void BSP_LED_Off()
 {
 	GPIOB->BSRR |= GPIO_BSRR_BR_3;
 }
+/*
+void BSP_Ultrason_Init()
+{
+	// Enable GPIOB clock
+	RCC->AHBENR |= RCC_AHBENR_GPIOAEN;
+
+	// Configure PB3 as output
+	GPIOA->MODER &= ~GPIO_MODER_MODER0;
+	GPIOA->MODER |= (0x01 <<GPIO_MODER_MODER0_Pos);
+
+	// Configure PB3 as Push-Pull output
+	GPIOA->OTYPER &= ~GPIO_OTYPER_OT_0;
+
+	// Configure PB3 as High-Speed Output
+	GPIOA->OSPEEDR &= ~GPIO_OSPEEDER_OSPEEDR0_Msk;
+	GPIOA->OSPEEDR |= (0x03 <<GPIO_OSPEEDER_OSPEEDR0_Pos);
+
+	// Disable PB3 Pull-up/Pull-down
+	GPIOA->PUPDR &= ~GPIO_PUPDR_PUPDR0_Msk;
+
+	// Set Initial State OFF
+	GPIOA->BSRR = GPIO_BSRR_BR_0;
+}*/
+
+void BSP_UTLRASONIC()
+{
+	// Enable GPIOB clock
+	RCC->AHBENR |= RCC_AHBENR_GPIOBEN;
+	// Configure PB4 as Alternate function
+	GPIOB->MODER &= ~(GPIO_MODER_MODER4_Msk);
+	GPIOB->MODER |=  (0x02 <<GPIO_MODER_MODER4_Pos);
+	// Set PB4 to AF1 (TIM3_CH1)
+	GPIOB->AFR[0] &= ~(0x000F0000);
+	GPIOB->AFR[0] |=  (0x00020000);
+	// Enable TIM3 clock
+	RCC -> APB1ENR |= RCC_APB1ENR_TIM3EN;
+	// Reset TIM3 configuration
+	TIM3->CR1  = 0x0000;
+	TIM3->CR2  = 0x0000;
+	TIM3->CCER = 0x0000;
+	// Set TIM3 prescaler
+	// Fck = 48MHz -> /48000 = 1KHz counting frequency
+	TIM3->PSC = (uint16_t) 64 -1;
+	// Set Auto-Reload to maximum value
+	TIM3->ARR = (uint16_t) 0xFFFF;
+	// Setup Input Capture
+	TIM3->CCMR1 = 0x0000;
+	TIM3->CCMR2 = 0x0000;
+	// Channel 1 input on TI1
+	TIM3->CCMR1 |= (0x01 <<TIM_CCMR1_CC1S_Pos);
+	// Channel 2 input also on TI1
+	TIM3->CCMR1 |= (0x02 <<TIM_CCMR1_CC2S_Pos);
+	// Filter with N=8
+	TIM3->CCMR1 |= (0x00 <<TIM_CCMR1_IC1F_Pos) | (0x00 <<TIM_CCMR1_IC2F_Pos);
+	// Select rising edge for channel 1
+	TIM3->CCER |= (0x00 <<TIM_CCER_CC1NP_Pos) | (0x00 <<TIM_CCER_CC1P_Pos);
+	// Select falling edge for channel 2
+	TIM3->CCER |= (0x00 <<TIM_CCER_CC2NP_Pos) | (0x01 <<TIM_CCER_CC2P_Pos);
+	// Enable capture on channel 1 & channel 2
+	TIM3->CCER |= (0x01 <<TIM_CCER_CC1E_Pos) | (0x01 <<TIM_CCER_CC2E_Pos);
+	// Choose Channel 1 as trigger input
+	TIM3->SMCR |= (0x05 <<TIM_SMCR_TS_Pos);
+	// Slave mode -> Resets counter when trigger occurs
+	TIM3->SMCR |= (0x4 <<TIM_SMCR_SMS_Pos);
+	// Enable TIM3
+	TIM3->CR1 |= TIM_CR1_CEN;
+}
+void BSP_DELAY_TIM_init(void)
+{
+	// Enable TIM6 clock
+	RCC->APB1ENR |= RCC_APB1ENR_TIM6EN;
+
+	// Reset TIM6 configuration
+	TIM6->CR1 = 0x0000;
+	TIM6->CR2 = 0x0000;
+
+	// Set TIM6 prescaler
+	// Fck = 64MHz -> /64 = 1MHz counting frequency
+	TIM6->PSC = (uint16_t) 64 -1;
+
+	// Set ARR to maximum value
+	TIM6->ARR = (uint16_t) 0xFFFF;
+}
+void BSP_DELAY_TIM_us(uint16_t ms)
+{
+	// Resets TIM6 counter
+	TIM6->EGR |= TIM_EGR_UG;
+
+	// Start TIM6 counter
+	TIM6->CR1 |= TIM_CR1_CEN;
+
+	// Wait until TIM6 counter reaches delay
+	while(TIM6->CNT < ms);
+
+	// Stop TIM6 counter
+	TIM6->CR1 &= ~TIM_CR1_CEN;
+}
+void BSP_PB_Init()
+{
+	// Enable GPIOC clock
+	RCC->AHBENR |= RCC_AHBENR_GPIOAEN;
+
+	// Configure PC13 as input
+	GPIOA->MODER &= ~GPIO_MODER_MODER1_Msk;
+	GPIOA->MODER |= (0x00 <<GPIO_MODER_MODER1_Pos);
+
+	// Disable PC13 Pull-up/Pull-down
+	GPIOA->PUPDR &= ~GPIO_PUPDR_PUPDR1_Msk;
+}
+uint8_t BSP_PB_GetState()
+{
+	uint8_t state;
+
+	if ((GPIOA->IDR & GPIO_IDR_1) == GPIO_IDR_1)
+	{
+		state = 0;
+	}
+	else
+	{
+		state = 1;
+	}
+
+	return state;
+}
+
+

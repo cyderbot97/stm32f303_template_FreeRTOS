@@ -1,234 +1,202 @@
-#include "stm32f3xx.h"
 #include "main.h"
-#include "bsp.h"
-#include "delay.h"
-#include "math.h"
-#include "MadgwickAHRS.h"
-#include "spi.h"
-#include "mpu9250.h"
 
-#include "FreeRTOSConfig.h"
-#include "FreeRTOS.h"
-#include "task.h"
-#include "timers.h"
-#include "semphr.h"
-#include "queue.h"
-#include "event_groups.h"
-#include "stream_buffer.h"
+#define aucun 0
+#define droite 1
+#define gauche 2
+#define off 0
+#define on 1
+
+#define Servo_Right_Leg TIM3->CCR1
+#define Servo_Left_Leg TIM3->CCR2
+
+#define Servo_Right_Hip TIM3->CCR3
+#define Servo_Left_Hip TIM3->CCR4
 
 static uint8_t SystemClock_Config(void);
 
+
+xSemaphoreHandle sem_new_data_uart;
+
+void OSCILLATEUR 	(void *pvParameters);
+void HEAD_TRACKING 	(void *pvParameters);
+void DECODE_UART_DATA 	(void *pvParameters);
+
 uint8_t	  rx_dma_buffer[16];
-
-
-uint16_t A;
-uint16_t B;
-uint16_t consigne_B;
-uint16_t inclinaison;
-
-
-float a,b,c;
-
-float roll,pitch,yaw, tampon;
-float kp,ki;
-
-float error, integral, output;
-
-int8_t mpu_data[14];
-
-int16_t raw_ax, raw_ay, raw_az,imu_temp, raw_gx, raw_gy, raw_gz;
-float imu_ax, imu_ay, imu_az,imu_gx,imu_gy,imu_gz;
-float consigne;
-
-void Obtenir_Inclinaison 	(void *pvParameters);
-void Signal_Consigne 	(void *pvParameters);
 float servo1,servo2,servo3,servo4,valeur;
+uint16_t out_pulse;
+
+int id_tag, x_tag, y_tag = 0;
+int etat = 0;
+int sens, marche;
+int val;
 
 int main()
 {
 	SystemClock_Config();
 
-	a = 0 ;
-	b = 0 ;
-	c = 0 ;
-	consigne = 0;
-
-	kp = 0.6;
-	ki = 7;
-
-	/*
-	 * Initialisation
-	 */
-
-	//BSP_LED_Init();
-	//delay_ms(100);
-
-	BSP_SPI1_Init();
-	delay_ms(100);
-
-	BSP_MPU9250_Init();
-	delay_ms(100);
-
 	BSP_Console_Init();
 	delay_ms(100);
 
-	servo_init();
+	BSP_SERVO_INIT();
 	delay_ms(100);
+
 
 	my_printf("\r\nConsole Ready!\r\n");
 
+	sem_new_data_uart = xSemaphoreCreateBinary();
 
-	xTaskCreate(Obtenir_Inclinaison, "Obtenir_Inclinaison", 256, NULL, 1, NULL);
-	xTaskCreate(Signal_Consigne, "Signal_Consigne", 256, NULL, 1, NULL);
+	xTaskCreate(OSCILLATEUR, "OSCILLATEUR", 256, NULL, 2, NULL);
+	xTaskCreate(HEAD_TRACKING, "HEAD_TRACKING", 256, NULL, 3, NULL);
+	xTaskCreate(DECODE_UART_DATA, "DECODE_UART_DATA", 256, NULL, 4, NULL);
 
-	// Start the Scheduler
 	vTaskStartScheduler();
 
-	// Loop forever
-	while(1)
-	{
+	while(1);
+}
+
+void DECODE_UART_DATA(void *pvParameters){
+
+	portBASE_TYPE	xStatus;
+
+	uart_init();
+
+	NVIC_SetPriority(USART1_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY + 1);
+	NVIC_EnableIRQ(USART1_IRQn);
+
+	while(1){
+		xStatus = xSemaphoreTake(sem_new_data_uart, 500);
+
+		if (xStatus == pdPASS)
+		{
+			USART1->CR1 &= ~USART_CR1_UE;
+
+			if(rx_dma_buffer[0]=='$'){
+				switch (rx_dma_buffer[1]) {
+					case 'T':
+						etat = sscanf(&rx_dma_buffer[2],"%d,%d,%d",&id_tag,&x_tag,&y_tag);
+						//my_printf("\r\n TAG ID = %d, x = %d, y = %d.\r\n", id_tag, x_tag, y_tag);
+						break;
+
+					default:
+						my_printf("\r\n error TAG data\r\n");
+						break;
+				}
+			}
+
+			// Make sure DMA1 channel 5 is disabled
+			while ( (DMA1_Channel5->CCR & DMA_CCR_EN) != 0)
+			{
+				DMA1_Channel5->CCR &= ~DMA_CCR_EN;
+			}
+
+			// Number of data items to transfer
+			DMA1_Channel5->CNDTR = 16;
+
+			// Enable DMA1 channel 5
+			DMA1_Channel5->CCR |= DMA_CCR_EN;
+
+			// Enable USART1
+			USART1->CR1 |= USART_CR1_UE;
+		}
+		else{
+			my_printf("\r\n . \r\n");
+		}
+
+
 	}
 }
 
-void Signal_Consigne (void *pvParameters){
+void HEAD_TRACKING(void *pvParameters){
 
-	float posA = 1500;
-	float posB = 1500;
-	float posC = 1500;
-	float posD = 1500;
+	float error, integral;
 
+	while(1){
+		error = 0 - (x_tag-80);
+		integral = integral + error;
+		val = 1500 + (int)(2*error+ integral*0.2);
+
+		if(val > 1800){
+			if(val > 2000) val = 2000;
+			marche = on;
+			sens = droite;
+		}
+		else if(val < 1200){
+			if(val < 1000) val = 1000;
+			marche = on;
+			sens = gauche;
+		}
+		else{
+			marche = off;
+			sens = aucun;
+		}
+
+		TIM1->CCR4 = val;
+		vTaskDelay(10);
+	}
+
+}
+
+void OSCILLATEUR(void *pvParameters){
 
 	float F = 250;
-	float R = 150;
-	float dt = 15;
+	float R = 100; //torsion
 
-	float t;
+	float dt = 10; //temps boucle
 
-	float pulse, pulse2;
+	float signal_sin,signal_cos;
+
+	float t = 25; // init a 25 car cos(25*....) = 0 evite le sursaut au demarage
+
 
 	while(1){
 
-		pulse=F*cos(t/100.0*2.0*3.14);
-		pulse2=R*sin(t/100.0*2.0*3.14);
+		if(marche == 1)
+		{
+			signal_cos = (F*cos((t/100)*2.0*3.14)); // signal de commande
+			signal_sin =(R*sin((t/100)*2.0*3.14));
 
-		if(t>100){
-			t=0;
+			if(sens == droite)
+			{
+				Servo_Right_Hip = 1500 - signal_sin;
+				Servo_Left_Hip = 1500 + signal_sin;
+			}
+			else if(sens == gauche)
+			{
+				Servo_Right_Hip = 1500 + signal_sin;
+				Servo_Left_Hip = 1500 - signal_sin;
+			}else
+			{
+				Servo_Left_Hip = 1500;
+				Servo_Right_Hip = 1500;
+			}
+
+			Servo_Left_Leg = 1500 + signal_cos + 50;
+			Servo_Right_Leg = 1500 + signal_cos - 50;
+
+			t++;
+			if(t>=100){t=0;}
+		}else
+		{
+			if((t != 25)&&(t != 75))
+			{
+				signal_cos = (F*cos((t/100)*2.0*3.14));
+
+				Servo_Left_Leg = 1500 + signal_cos + 50;
+				Servo_Right_Leg = 1500 + signal_cos - 50;
+
+				t++;
+				if(t>=100){t=0;}
+			}else
+			{
+				Servo_Left_Hip = 0;
+				Servo_Right_Hip = 0;
+				Servo_Left_Leg = 0;
+				Servo_Right_Leg = 0;
+			}
 		}
-
-		/*
-		valeur = 1500 + pulse;
-		error = valeur - (1500 + roll*500/60);
-		integral = integral + error*dt;
-		pulse = pulse + 0.7*error + 0*integral;
-*/
-		servo1 = posA - pulse2;
-		servo2 = posB-75+pulse;
-		servo3 = posC - pulse2;
-		servo4 = posD+75+pulse;
-
-
-
-		t++;
 		vTaskDelay(dt);
-
-		TIM3->CCR2 = servo4;
-		TIM3->CCR1 = servo2;
-		TIM3->CCR3 = servo3;
-		TIM3->CCR4 = servo1;
-
 	}
 
-
-}
-
-void Obtenir_Inclinaison (void *pvParameters)
-{
-	while(1){
-		//BSP_LED_On(); //verifier le temps de boucle
-
-		BSP_SPI_Read(MPUREG_ACCEL_XOUT_H, mpu_data, 14);
-
-		raw_ax = ((int16_t)mpu_data[0]<<8) | (int16_t)mpu_data[1];
-		raw_ay = ((int16_t)mpu_data[2]<<8) | (int16_t)mpu_data[3];
-		raw_az = ((int16_t)mpu_data[4]<<8) | (int16_t)mpu_data[5];
-
-		// Scale Accelerometers with offset cancellation
-		imu_ax = raw_ax * MPU9250A_2g;
-		imu_ay = raw_ay * MPU9250A_2g;
-		imu_az = raw_az * MPU9250A_2g;
-
-		// Record temperature
-		imu_temp = ((int16_t)mpu_data[6]<<8) | (int16_t)mpu_data[7];
-
-		raw_gx = ((int16_t)mpu_data[8]<<8)  | (int16_t)mpu_data[9];
-		raw_gy = ((int16_t)mpu_data[10]<<8) | (int16_t)mpu_data[11];
-		raw_gz = ((int16_t)mpu_data[12]<<8) | (int16_t)mpu_data[13];
-
-		// Scale Gyros with offset cancellation
-		imu_gx = raw_gx * MPU9250G_500dps;
-		imu_gy = raw_gy * MPU9250G_500dps;
-		imu_gz = raw_gz * MPU9250G_500dps;
-
-
-		MadgwickAHRSupdateIMU(imu_gx, imu_gy, imu_gz, imu_ax, imu_ay, imu_az);
-
-		roll = atan2f(2.0f * (q0*q1 + q2*q3), q0*q0 - q1*q1 - q2*q2 + q3*q3)*180/3.14;
-
-		//error = inclinaison - roll;
-
-		//integral = integral + error*0.006;
-
-		//output = kp*error + ki*integral;
-
-		//consigne_B = output*1000/120 + 1500;
-
-		//kinematic_bascule(consigne_B);
-
-		//BSP_LED_Off();
-
-		vTaskDelay(5);
-	}
-}
-
-void kinematic_bascule(uint16_t inclinaison_pulse){
-
-	//
-	//calculate pulse width for 2 bascule motor
-
-	//state machine
-
-	float coeff = 3.5;
-
-	if((inclinaison_pulse <= 1500) && (inclinaison_pulse >= 1000)){
-
-		//calcul
-		A = 1500 - (1500-inclinaison_pulse) * coeff;
-		B = inclinaison_pulse;
-
-		if(A<1000){
-			A = 1000;
-		}
-
-		TIM3->CCR1 = A;
-		TIM3->CCR2 = B;
-
-	}else if((inclinaison_pulse <= 2000) && (inclinaison_pulse >= 1500)){ // 1650 = 78 deg
-
-		//Calcul
-		B = 1500 + (inclinaison_pulse - 1500)*coeff;
-		A = inclinaison_pulse;
-
-		if(B>2000) {
-			B = 2000;
-		}
-
-		//set PWM motor value
-		TIM3->CCR2 = B;
-		TIM3->CCR1 = A;
-
-	}else {
-
-	}
 
 }
 
