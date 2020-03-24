@@ -632,3 +632,41 @@ Reason: (2) ST-Link DLL error.
 !MESSAGE Request for monitor: 'RequestMonitor (com.atollic.truestudio.sfrview.ui.SfrView$4@8ef92d): Status ERROR: org.eclipse.cdt.dsf.gdb code=10001 Connection is shut down null' resulted in an error.
 !SUBENTRY 1 org.eclipse.cdt.dsf.gdb 4 10001 2020-03-24 16:53:49.212
 !MESSAGE Connection is shut down
+
+!ENTRY com.atollic.truestudio.debug 4 0 2020-03-24 17:42:44.191
+!MESSAGE Error - No active DSF-Session. tmpSessionId = 77 (contextManager row 121)
+
+!ENTRY com.atollic.truestudio.debug 4 0 2020-03-24 17:42:44.192
+!MESSAGE Existing sessions are:
+
+!ENTRY com.atollic.truestudio.debug 4 0 2020-03-24 17:42:44.193
+!MESSAGE Error - No active DSF-Session. tmpSessionId = 77 (contextManager row 121)
+
+!ENTRY com.atollic.truestudio.debug 4 0 2020-03-24 17:42:44.194
+!MESSAGE Existing sessions are:
+
+!ENTRY org.eclipse.cdt.dsf 4 10005 2020-03-24 17:46:16.967
+!MESSAGE Request for monitor: 'RequestMonitor (org.eclipse.cdt.dsf.mi.service.MIRunControl$9@12870a5): Status ERROR: org.eclipse.cdt.dsf code=10001 Sequence "" failed while rolling back. null children=[Status ERROR: org.eclipse.cdt.dsf.gdb code=10001 Connection is shut down null Status ERROR: org.eclipse.cdt.dsf.gdb code=10001 Connection is shut down null]' resulted in an error.
+!SUBENTRY 1 org.eclipse.cdt.dsf.gdb 4 10001 2020-03-24 17:46:16.967
+!MESSAGE Connection is shut down
+!SUBENTRY 1 org.eclipse.cdt.dsf.gdb 4 10001 2020-03-24 17:46:16.967
+!MESSAGE Connection is shut down
+
+!ENTRY org.eclipse.cdt.dsf 4 10005 2020-03-24 17:52:07.808
+!MESSAGE Request for monitor: 'RequestMonitor (org.eclipse.cdt.dsf.mi.service.MIRunControl$9@12987fd): Status ERROR: org.eclipse.cdt.dsf.gdb code=10004 Interrupt failed. null' resulted in an error.
+!SUBENTRY 1 org.eclipse.cdt.dsf.gdb 4 10004 2020-03-24 17:52:07.808
+!MESSAGE Interrupt failed.
+
+!ENTRY TrueSTUDIO 4 0 2020-03-24 18:35:31.260
+!MESSAGE ST-LINK GDB server failed to start (exit code = 2)
+
+!ENTRY org.eclipse.cdt.dsf.gdb 4 5012 2020-03-24 18:35:31.301
+!MESSAGE Error in initializing ST-Link device.
+Reason: (2) ST-Link DLL error.
+
+!ENTRY TrueSTUDIO 4 0 2020-03-24 18:35:40.611
+!MESSAGE ST-LINK GDB server failed to start (exit code = 2)
+
+!ENTRY org.eclipse.cdt.dsf.gdb 4 5012 2020-03-24 18:35:40.649
+!MESSAGE Error in initializing ST-Link device.
+Reason: (2) ST-Link DLL error.

@@ -1,26 +1,26 @@
-16:52:14 **** Incremental Build of configuration Debug for project nucleo-32_F303-master ****
+18:42:33 **** Incremental Build of configuration Debug for project nucleo-32_F303-master ****
 Info: Internal Builder is used for build
 arm-atollic-eabi-gcc -c ..\app\src\main.c -mthumb -mcpu=cortex-m4 -mfloat-abi=hard -mfpu=fpv4-sp-d16 -std=gnu11 -DSTM32F303x8 -DUSE_HSI -IC:\Users\cyril\Documents\GitHub\stm32f303_template_FreeRTOS\nucleo-32_F303-master\app\inc -IC:\Users\cyril\Documents\GitHub\stm32f303_template_FreeRTOS\nucleo-32_F303-master\FreeRTOS\Source\include -IC:\Users\cyril\Documents\GitHub\stm32f303_template_FreeRTOS\nucleo-32_F303-master\FreeRTOS\Source\portable\GCC\ARM_CM4F -IC:\Users\cyril\Documents\GitHub\stm32f303_template_FreeRTOS\nucleo-32_F303-master\bsp\inc -IC:\Users\cyril\Documents\GitHub\stm32f303_template_FreeRTOS\nucleo-32_F303-master\cmsis\core -IC:\Users\cyril\Documents\GitHub\stm32f303_template_FreeRTOS\nucleo-32_F303-master\cmsis\device\inc -O0 -g -fstack-usage -Wall -specs=nano.specs -o app\src\main.o 
 ..\app\src\main.c: In function 'main':
-..\app\src\main.c:75:2: warning: implicit declaration of function 'BSP_LED_Init' [-Wimplicit-function-declaration]
+..\app\src\main.c:71:2: warning: implicit declaration of function 'BSP_LED_Init' [-Wimplicit-function-declaration]
   BSP_LED_Init();
   ^~~~~~~~~~~~
-..\app\src\main.c:79:2: warning: implicit declaration of function 'BSP_SERVO_INIT' [-Wimplicit-function-declaration]
+..\app\src\main.c:75:2: warning: implicit declaration of function 'BSP_SERVO_INIT' [-Wimplicit-function-declaration]
   BSP_SERVO_INIT();
   ^~~~~~~~~~~~~~
 ..\app\src\main.c: In function 'HEAD_TRACKING':
-..\app\src\main.c:151:15: warning: unused variable 'integral' [-Wunused-variable]
+..\app\src\main.c:152:15: warning: unused variable 'integral' [-Wunused-variable]
   float error, integral;
                ^~~~~~~~
-..\app\src\main.c:151:8: warning: unused variable 'error' [-Wunused-variable]
+..\app\src\main.c:152:8: warning: unused variable 'error' [-Wunused-variable]
   float error, integral;
         ^~~~~
 ..\app\src\main.c: In function 'GET_SONAR':
-..\app\src\main.c:271:2: warning: implicit declaration of function 'BSP_UTLRASONIC' [-Wimplicit-function-declaration]
+..\app\src\main.c:213:2: warning: implicit declaration of function 'BSP_UTLRASONIC' [-Wimplicit-function-declaration]
   BSP_UTLRASONIC();
   ^~~~~~~~~~~~~~
 ..\app\src\main.c: In function 'DECODE_UART_DATA':
-..\app\src\main.c:314:14: warning: pointer targets in passing argument 1 of 'sscanf' differ in signedness [-Wpointer-sign]
+..\app\src\main.c:256:14: warning: pointer targets in passing argument 1 of 'sscanf' differ in signedness [-Wpointer-sign]
        sscanf(&rx_dma_buffer[2],"%d,%d,%d",&id_tag,&x_tag,&y_tag);
               ^
 In file included from c:\program files (x86)\atollic\truestudio for stm32 9.3.0\armtools\arm-atollic-eabi\include\sys\reent.h:13:0,
@@ -31,7 +31,7 @@ c:\program files (x86)\atollic\truestudio for stm32 9.3.0\armtools\arm-atollic-e
  int _EXFUN(sscanf, (const char *__restrict, const char *__restrict, ...)
      ^
 ..\app\src\main.c: In function 'OSCILLATEUR':
-..\app\src\main.c:355:8: warning: unused variable 'dt' [-Wunused-variable]
+..\app\src\main.c:295:8: warning: unused variable 'dt' [-Wunused-variable]
   float dt = 10; //temps boucle
         ^~
 arm-atollic-eabi-gcc -o nucleo-32_F303-master.elf .metadata\.plugins\org.eclipse.cdt.make.core\specs.o FreeRTOS\Source\croutine.o FreeRTOS\Source\event_groups.o FreeRTOS\Source\list.o FreeRTOS\Source\portable\GCC\ARM_CM4F\port.o FreeRTOS\Source\portable\MemMang\heap_1.o FreeRTOS\Source\queue.o FreeRTOS\Source\stream_buffer.o FreeRTOS\Source\tasks.o FreeRTOS\Source\timers.o app\src\main.o app\src\printf-stdarg.o app\src\stm32f3xx_it.o bsp\src\bsp.o bsp\src\delay.o bsp\src\mpu9250.o bsp\src\spi.o cmsis\device\src\startup_stm32f303x8.o cmsis\device\src\system_stm32f3xx.o -mthumb -mcpu=cortex-m4 -mfloat-abi=hard -mfpu=fpv4-sp-d16 -TC:\Users\cyril\Documents\GitHub\stm32f303_template_FreeRTOS\nucleo-32_F303-master\STM32F303K8Tx_FLASH.ld -specs=nosys.specs -static -Wl,-cref,-u,Reset_Handler -Wl,-Map=nucleo-32_F303-master.map -Wl,--defsym=malloc_getpagesize_P=0x80 -Wl,--start-group -lc -lm -Wl,--end-group -specs=nano.specs 
@@ -39,7 +39,7 @@ C:\Program Files (x86)\Atollic\TrueSTUDIO for STM32 9.3.0\ide\jre\bin\java -jar 
 Generate build reports...
 Print size information
    text	   data	    bss	    dec	    hex	filename
-  42432	    484	   8300	  51216	   c810	nucleo-32_F303-master.elf
+  42184	    484	   8260	  50928	   c6f0	nucleo-32_F303-master.elf
 Print size information done
 Generate listing file
 Output sent to: nucleo-32_F303-master.list

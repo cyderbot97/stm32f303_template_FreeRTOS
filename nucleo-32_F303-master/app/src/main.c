@@ -24,27 +24,23 @@ static uint8_t SystemClock_Config(void);
 #define Head_Pos_Max_Right	( (EventBits_t)( 0x01 <<4) )
 #define Head_Pos_Max_Left	( (EventBits_t)( 0x01 <<5) )
 
+#define Walk_Stop			( (EventBits_t)( 0x01 <<0) )
+#define	Walk_Forward		( (EventBits_t)( 0x01 <<1) )
+#define	Walk_Backward		( (EventBits_t)( 0x01 <<2) )
+#define	Walk_Turn_Stop		( (EventBits_t)( 0x01 <<3) )
+#define Walk_Turn_Right		( (EventBits_t)( 0x01 <<4) )
+#define Walk_Turn_Left		( (EventBits_t)( 0x01 <<5) )
+
+
 // Kernel objects
 EventGroupHandle_t EventGroupHead;
+EventGroupHandle_t EventGroupWalk;
 
 xSemaphoreHandle xSem_New_Data_Uart;
 xSemaphoreHandle xSem_New_Data_Sonar;
 
-xSemaphoreHandle xSem_Walk_Start;
-xSemaphoreHandle xSem_Walk_Stop;
-xSemaphoreHandle xSem_Turn_Left;
-xSemaphoreHandle xSem_Turn_Right;
-xSemaphoreHandle xSem_Turn_Stop;
 xSemaphoreHandle xSem_Tag_Found;
 xSemaphoreHandle xSem_Tag_Lost;
-
-xSemaphoreHandle xSem_Head_Turn_Left;
-xSemaphoreHandle xSem_Head_Turn_Right;
-xSemaphoreHandle xSem_Head_Turn_Stop;
-xSemaphoreHandle xSem_Head_Turn_Reset;
-
-xSemaphoreHandle xSem_Head_Pos_Left_Max;
-xSemaphoreHandle xSem_Head_Pos_Right_Max;
 
 xSemaphoreHandle xSem_Obstacle_Disapear;
 xSemaphoreHandle xSem_Obstacle_Present;
@@ -81,6 +77,7 @@ int main()
 
 	// Create Event Group                   // <-- Create Event Group here
 	EventGroupHead = xEventGroupCreate();
+	EventGroupWalk = xEventGroupCreate();
 
 	// Create Semaphore object
 	xSem_New_Data_Uart 		= xSemaphoreCreateBinary();
@@ -89,27 +86,14 @@ int main()
 	xSem_Tag_Found 			= xSemaphoreCreateBinary();
 	xSem_Tag_Lost 			= xSemaphoreCreateBinary();
 
-	xSem_Walk_Start 		= xSemaphoreCreateBinary();
-	xSem_Walk_Stop 			= xSemaphoreCreateBinary();
-	xSem_Turn_Stop 			= xSemaphoreCreateBinary();
-	xSem_Turn_Right 		= xSemaphoreCreateBinary();
-	xSem_Turn_Left 			= xSemaphoreCreateBinary();
-
-	xSem_Head_Turn_Left 	= xSemaphoreCreateBinary();
-	xSem_Head_Turn_Right 	= xSemaphoreCreateBinary();
-	xSem_Head_Turn_Stop 	= xSemaphoreCreateBinary();
-	xSem_Head_Turn_Reset 	= xSemaphoreCreateBinary();
-
 	xSem_Obstacle_Disapear	= xSemaphoreCreateBinary();
 	xSem_Obstacle_Present	= xSemaphoreCreateBinary();
 
-
-
 	// Create Tasks
 	//xTaskCreate(GET_SONAR, "GET_SONAR", 256, NULL, 3, NULL);
-	xTaskCreate(CMD_HEAD, "CMD_HEAD", 256, NULL, 3, NULL);
-	//xTaskCreate(OSCILLATEUR, "OSCILLATEUR", 256, NULL, 2, NULL);
-	xTaskCreate(HEAD_TRACKING, "HEAD_TRACKING", 256, NULL, 2, NULL);
+	xTaskCreate(CMD_HEAD, "CMD_HEAD", 256, NULL, 2, NULL);
+	xTaskCreate(OSCILLATEUR, "OSCILLATEUR", 256, NULL, 2, NULL);
+	//xTaskCreate(HEAD_TRACKING, "HEAD_TRACKING", 256, NULL, 2, NULL);
 	//xTaskCreate(DECODE_UART_DATA, "DECODE_UART_DATA", 256, NULL, 4, NULL);
 
 	//Start Scheduler
@@ -130,17 +114,34 @@ void CMD_HEAD(void *pvParameters){
 		//my_printf("(RE)");
 		//xEventGroupSetBits(EventGroupHead, Head_Reset);
 
-		vTaskDelay(3000);
-		my_printf("(LE)");
-		xEventGroupSetBits(EventGroupHead, Head_Turn_Left);
+
 
 		//vTaskDelay(1000);
 		//my_printf("(ST)");
 		//xEventGroupSetBits(EventGroupHead, Head_Turn_Stop);
+		/*
+		vTaskDelay(3000);
+		my_printf("(Fr)");
+		xEventGroupSetBits(EventGroupWalk, Walk_Forward);
+		vTaskDelay(3000);
+		my_printf("(St)");
+		xEventGroupSetBits(EventGroupWalk, Walk_Stop);
 
 		vTaskDelay(3000);
-		my_printf("(RI)");
-		xEventGroupSetBits(EventGroupHead, Head_Turn_Right);
+		my_printf("(Lf)");
+		xEventGroupSetBits(EventGroupWalk, Walk_Turn_Left);
+
+		vTaskDelay(3000);
+		my_printf("(Tst)");
+		xEventGroupSetBits(EventGroupWalk, Walk_Turn_Stop);
+
+		vTaskDelay(3000);
+		my_printf("(Ri)");
+		xEventGroupSetBits(EventGroupWalk, Walk_Turn_Right);
+
+		vTaskDelay(3000);
+		my_printf("(Ba)");
+		xEventGroupSetBits(EventGroupWalk, Walk_Backward);*/
 
 	}
 
@@ -158,8 +159,6 @@ void HEAD_TRACKING(void *pvParameters){
 	NVIC_EnableIRQ(TIM2_IRQn);
 
 	EventBits_t uxBits;
-
-
 
 	while(1)
 	{
@@ -205,64 +204,7 @@ void HEAD_TRACKING(void *pvParameters){
 
 
 	}
-/*
-	while(1){ // Evitement simple d'obstacle
-		//On avance
-		xSemaphoreGive(xSem_Walk_Start);
 
-		//On attend de rencontrer un obstacle, on s'arrete et on attend 2sec
-		xSemaphoreTake(xSem_Obstacle_Present, portMAX_DELAY);
-		//xSemaphoreGive(xSem_Walk_Stop);
-		//vTaskDelay(2000);
-
-		//Quand on rencontre un obstacle on tourne à gauche jusqu'à la disparition de l'obstacle
-		//xSemaphoreGive(xSem_Walk_Start);
-		xSemaphoreGive(xSem_Turn_Left);
-
-		//On attend que l'obstacle disparaisse
-		xSemaphoreTake(xSem_Obstacle_Disapear,portMAX_DELAY);
-		xSemaphoreGive(xSem_Turn_Stop);
-
-	}
-
-	while(1){ // Tag Tracking
-		error = 0;
-		integral = 0;
-		val = 0;
-
-		xSemaphoreTake(xSem_Tag_Found,portMAX_DELAY);
-
-		while(xSemaphoreTake(xSem_Tag_Lost,10) != pdTRUE)
-		{
-			error = 0 - (x_tag-80);
-			integral = integral + error;
-			val = 1500 + (int)(2*error+ integral*0.2);
-
-			if(val > 1800){
-				if(val > 2000) val = 2000;
-				xSemaphoreGive(xSem_Walk_Start);
-				xSemaphoreGive(xSem_Turn_Right);
-			}
-			else if(val < 1200){
-				if(val < 1000) val = 1000;
-				xSemaphoreGive(xSem_Walk_Start);
-				xSemaphoreGive(xSem_Turn_Left);
-			}
-			else{
-				xSemaphoreGive(xSem_Walk_Stop);
-				xSemaphoreGive(xSem_Turn_Stop);
-			}
-
-			Servo_Head = val;
-		}
-		xSemaphoreTake(xSem_Tag_Found,0);
-		xSemaphoreGive(xSem_Walk_Stop);
-		xSemaphoreGive(xSem_Turn_Stop);
-
-		Servo_Head = 1500;
-
-	}
-*/
 }
 
 void GET_SONAR(void *pvParameters){
@@ -345,8 +287,6 @@ void DECODE_UART_DATA(void *pvParameters){
 	}
 }
 
-
-
 void OSCILLATEUR(void *pvParameters){
 
 	float F = 250;
@@ -358,27 +298,27 @@ void OSCILLATEUR(void *pvParameters){
 
 	float t = 25; // init a 25 car cos(25*....) = 0 evite le sursaut au demarage
 
-	int sens = 0;
 
-	while(1){
+	EventBits_t uxBits;
 
-		xSemaphoreTake(xSem_Walk_Start,portMAX_DELAY);
+	while(1)
+	{
 
-		while(xSemaphoreTake(xSem_Walk_Stop,9)==pdFALSE)
+		uxBits = xEventGroupWaitBits(EventGroupWalk, Walk_Forward | Walk_Backward |Walk_Turn_Left | Walk_Turn_Right | Walk_Turn_Stop, pdTRUE, pdFALSE, portMAX_DELAY);
+		//my_printf("!");
+		while( xEventGroupWaitBits(EventGroupWalk,
+				Walk_Stop | Walk_Forward | Walk_Backward | Walk_Turn_Left | Walk_Turn_Right | Walk_Turn_Stop,
+				pdFALSE, pdFALSE, 9) == 0)
 		{
 			signal_cos = (F*cos((t/100)*2.0*3.14)); // signal de commande
 			signal_sin =(R*sin((t/100)*2.0*3.14));
 
-			if(xSemaphoreTake(xSem_Turn_Right,0)==pdTRUE) sens = droite;
-			if(xSemaphoreTake(xSem_Turn_Left,0)==pdTRUE) sens = gauche;
-			if(xSemaphoreTake(xSem_Turn_Stop,0)==pdTRUE) sens = aucun;
-
-			if(sens == droite)
+			if((uxBits & Walk_Turn_Left) == Walk_Turn_Left)
 			{
 				Servo_Right_Hip = 1500 - signal_sin;
 				Servo_Left_Hip = 1500 + signal_sin;
 			}
-			else if(sens == gauche)
+			else if((uxBits & Walk_Turn_Right) == Walk_Turn_Right)
 			{
 				Servo_Right_Hip = 1500 + signal_sin;
 				Servo_Left_Hip = 1500 - signal_sin;
@@ -386,39 +326,45 @@ void OSCILLATEUR(void *pvParameters){
 			{
 				Servo_Right_Hip = 1500 - signal_sin;
 				Servo_Left_Hip = 1500 - signal_sin;
-				//Servo_Left_Hip = 1500;
-				//Servo_Right_Hip = 1500;
 			}
 
-			Servo_Left_Leg = 1500 + signal_cos + 50;
-			Servo_Right_Leg = 1500 + signal_cos - 50;
+			if((uxBits & Walk_Backward) == Walk_Backward)
+			{
+				Servo_Left_Leg = 1500 - signal_cos + 50;
+								Servo_Right_Leg = 1500 - signal_cos - 50;
+			}
+			else
+			{
+				Servo_Left_Leg = 1500 + signal_cos + 50;
+				Servo_Right_Leg = 1500 + signal_cos - 50;
+			}
 
 			t++;
 			if(t>=100){t=0;}
 		}
-
-		//On se remet à plat
-
-		while((t != 25)&&(t != 75))
+		if((xEventGroupWaitBits(EventGroupWalk, Walk_Stop, pdTRUE, pdFALSE, 0) & Walk_Stop) == Walk_Stop)
 		{
-			signal_cos = (F*cos((t/100)*2.0*3.14));
-			Servo_Left_Leg = 1500 + signal_cos + 50;
-			Servo_Right_Leg = 1500 + signal_cos - 50;
+			//Eventgroup sur Walk_Stop -> on descend pepere
+			//my_printf("|");
+			while((t != 25)&&(t != 75))
+			{
+				signal_cos = (F*cos((t/100)*2.0*3.14));
+				Servo_Left_Leg = 1500 + signal_cos + 50;
+				Servo_Right_Leg = 1500 + signal_cos - 50;
 
-			t++;
-			if(t>=100){t=0;}
-			vTaskDelay(10);
+				t++;
+				if(t>=100){t=0;}
+				vTaskDelay(10);
+			}
+
+			//On coupe les servo's
+			Servo_Left_Hip = 0;
+			Servo_Right_Hip = 0;
+			Servo_Left_Leg = 0;
+			Servo_Right_Leg = 0;
 		}
 
-		//On coupe les servo's
-		Servo_Left_Hip = 0;
-		Servo_Right_Hip = 0;
-		Servo_Left_Leg = 0;
-		Servo_Right_Leg = 0;
-
-		xSemaphoreTake(xSem_Walk_Start,0);
-		xSemaphoreTake(xSem_Walk_Stop,0);
-
+		//my_printf(".");
 	}
 }
 
