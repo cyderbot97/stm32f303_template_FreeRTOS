@@ -1,16 +1,22 @@
-/*
- * bsp.c
- *
- *  Created on: 5 août 2017
- *      Author: Laurent
- */
-
 #include "main.h"
 
 
-extern uint8_t irq;
-extern xSemaphoreHandle sem_new_data_uart;
+extern int sonar_data;
+extern xSemaphoreHandle xSem_New_Data_Sonar;
 
+void TIM2_IRQHandler(){
+
+	portBASE_TYPE xHigherPriorityTaskWoken = pdFALSE;
+
+	if((TIM2->SR & TIM_SR_CC2IF) == TIM_SR_CC2IF){
+		sonar_data = TIM2->CCR2;
+		BSP_LED_Toggle();
+		xSemaphoreGiveFromISR(xSem_New_Data_Sonar, &xHigherPriorityTaskWoken);
+		portEND_SWITCHING_ISR(xHigherPriorityTaskWoken);
+	}
+}
+
+extern xSemaphoreHandle xSem_New_Data_Uart;
 void USART1_IRQHandler(){
 
 	portBASE_TYPE xHigherPriorityTaskWoken = pdFALSE;
@@ -20,7 +26,7 @@ void USART1_IRQHandler(){
 			// Clear the interrupt pending bit
 			USART1->ICR |= USART_ICR_RTOCF;
 
-			xSemaphoreGiveFromISR(sem_new_data_uart, &xHigherPriorityTaskWoken);
+			xSemaphoreGiveFromISR(xSem_New_Data_Uart, &xHigherPriorityTaskWoken);
 
 			portEND_SWITCHING_ISR(xHigherPriorityTaskWoken);
 		}
@@ -325,13 +331,13 @@ void BSP_SERVO_INIT(void)
 	// Set default PWM values
 	TIM1->CCR1 = 1000; // right arm
 	TIM1->CCR2 = 2000; // left arm
-	TIM1->CCR3 = 0;
-	TIM1->CCR4 = 0; // head
+	TIM1->CCR3 = 1500;
+	TIM1->CCR4 = 1500; // head
 
-	TIM3->CCR1 = 0;
-	TIM3->CCR2 = 0;
-	TIM3->CCR3 = 0;
-	TIM3->CCR4 = 0;
+	TIM3->CCR1 = 1500;
+	TIM3->CCR2 = 1500;
+	TIM3->CCR3 = 1500;
+	TIM3->CCR4 = 1500;
 
 	// Enable Outputs
 	TIM1->CCER |= TIM_CCER_CC1E | TIM_CCER_CC2E | TIM_CCER_CC3E | TIM_CCER_CC4E;
@@ -345,6 +351,20 @@ void BSP_SERVO_INIT(void)
 	// Enable TIM3 and TIM1
 	TIM1->CR1 |= TIM_CR1_CEN;
 	TIM3->CR1 |= TIM_CR1_CEN;
+
+	delay_ms(1000);
+
+	TIM1->CCR1 = 0; // right arm
+	TIM1->CCR2 = 0; // left arm
+	TIM1->CCR3 = 0;
+	TIM1->CCR4 = 0; // head
+
+	TIM3->CCR1 = 0;
+	TIM3->CCR2 = 0;
+	TIM3->CCR3 = 0;
+	TIM3->CCR4 = 0;
+
+
 
 }
 
@@ -410,45 +430,51 @@ void BSP_Ultrason_Init()
 void BSP_UTLRASONIC()
 {
 	// Enable GPIOB clock
-	RCC->AHBENR |= RCC_AHBENR_GPIOBEN;
-	// Configure PB4 as Alternate function
-	GPIOB->MODER &= ~(GPIO_MODER_MODER4_Msk);
-	GPIOB->MODER |=  (0x02 <<GPIO_MODER_MODER4_Pos);
-	// Set PB4 to AF1 (TIM3_CH1)
-	GPIOB->AFR[0] &= ~(0x000F0000);
-	GPIOB->AFR[0] |=  (0x00020000);
-	// Enable TIM3 clock
-	RCC -> APB1ENR |= RCC_APB1ENR_TIM3EN;
-	// Reset TIM3 configuration
-	TIM3->CR1  = 0x0000;
-	TIM3->CR2  = 0x0000;
-	TIM3->CCER = 0x0000;
+	RCC->AHBENR |= RCC_AHBENR_GPIOAEN;
+	// Configure PA2 as Alternate function
+	GPIOA->MODER &= ~(GPIO_MODER_MODER0_Msk);
+	GPIOA->MODER |=  (0x02 <<GPIO_MODER_MODER0_Pos);
+	// Set PA2 to AF1 (TIM2_CH1)
+	GPIOA->AFR[0] &= ~(0x0000000F);
+	GPIOA->AFR[0] |=  (0x00000001);
+	// Enable TIM2 clock
+	RCC -> APB1ENR |= RCC_APB1ENR_TIM2EN;
+	// Reset TIM2 configuration
+	TIM2->CR1  = 0x0000;
+	TIM2->CR2  = 0x0000;
+	TIM2->CCER = 0x0000;
 	// Set TIM3 prescaler
-	// Fck = 48MHz -> /48000 = 1KHz counting frequency
-	TIM3->PSC = (uint16_t) 64 -1;
+	// Fck = 48MHz -> /48000 = 1MHz counting frequency
+	TIM2->PSC = (uint16_t) 64 -1;
 	// Set Auto-Reload to maximum value
-	TIM3->ARR = (uint16_t) 0xFFFF;
+	TIM2->ARR = (uint16_t) 0xFFFF;
 	// Setup Input Capture
-	TIM3->CCMR1 = 0x0000;
-	TIM3->CCMR2 = 0x0000;
+	TIM2->CCMR1 = 0x0000;
+	TIM2->CCMR2 = 0x0000;
 	// Channel 1 input on TI1
-	TIM3->CCMR1 |= (0x01 <<TIM_CCMR1_CC1S_Pos);
+	TIM2->CCMR1 |= (0x01 <<TIM_CCMR1_CC1S_Pos);
 	// Channel 2 input also on TI1
-	TIM3->CCMR1 |= (0x02 <<TIM_CCMR1_CC2S_Pos);
+	TIM2->CCMR1 |= (0x02 <<TIM_CCMR1_CC2S_Pos);
 	// Filter with N=8
-	TIM3->CCMR1 |= (0x00 <<TIM_CCMR1_IC1F_Pos) | (0x00 <<TIM_CCMR1_IC2F_Pos);
+	TIM2->CCMR1 |= (0x00 <<TIM_CCMR1_IC1F_Pos) | (0x00 <<TIM_CCMR1_IC2F_Pos);
 	// Select rising edge for channel 1
-	TIM3->CCER |= (0x00 <<TIM_CCER_CC1NP_Pos) | (0x00 <<TIM_CCER_CC1P_Pos);
+	TIM2->CCER |= (0x00 <<TIM_CCER_CC1NP_Pos) | (0x00 <<TIM_CCER_CC1P_Pos);
 	// Select falling edge for channel 2
-	TIM3->CCER |= (0x00 <<TIM_CCER_CC2NP_Pos) | (0x01 <<TIM_CCER_CC2P_Pos);
+	TIM2->CCER |= (0x00 <<TIM_CCER_CC2NP_Pos) | (0x01 <<TIM_CCER_CC2P_Pos);
 	// Enable capture on channel 1 & channel 2
-	TIM3->CCER |= (0x01 <<TIM_CCER_CC1E_Pos) | (0x01 <<TIM_CCER_CC2E_Pos);
+	TIM2->CCER |= (0x01 <<TIM_CCER_CC1E_Pos) | (0x01 <<TIM_CCER_CC2E_Pos);
 	// Choose Channel 1 as trigger input
-	TIM3->SMCR |= (0x05 <<TIM_SMCR_TS_Pos);
+	TIM2->SMCR |= (0x05 <<TIM_SMCR_TS_Pos);
 	// Slave mode -> Resets counter when trigger occurs
-	TIM3->SMCR |= (0x4 <<TIM_SMCR_SMS_Pos);
+	TIM2->SMCR |= (0x4 <<TIM_SMCR_SMS_Pos);
+
+	TIM2->DIER |= TIM_DIER_CC2IE;
+	//TIM2->DIER |= TIM_DIER_UIE;
+
 	// Enable TIM3
-	TIM3->CR1 |= TIM_CR1_CEN;
+	TIM2->CR1 |= TIM_CR1_CEN;
+
+
 }
 void BSP_DELAY_TIM_init(void)
 {

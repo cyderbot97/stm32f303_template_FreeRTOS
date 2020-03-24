@@ -12,59 +12,297 @@
 #define Servo_Right_Hip TIM3->CCR3
 #define Servo_Left_Hip TIM3->CCR4
 
+#define Servo_Head TIM1->CCR4
+
 static uint8_t SystemClock_Config(void);
 
+// Define Event Group flags
+#define	Head_Reset			( (EventBits_t)( 0x01 <<0) )
+#define	Head_Turn_Stop		( (EventBits_t)( 0x01 <<1) )
+#define Head_Turn_Right		( (EventBits_t)( 0x01 <<2) )
+#define Head_Turn_Left		( (EventBits_t)( 0x01 <<3) )
+#define Head_Pos_Max_Right	( (EventBits_t)( 0x01 <<4) )
+#define Head_Pos_Max_Left	( (EventBits_t)( 0x01 <<5) )
 
-xSemaphoreHandle sem_new_data_uart;
+// Kernel objects
+EventGroupHandle_t EventGroupHead;
 
+xSemaphoreHandle xSem_New_Data_Uart;
+xSemaphoreHandle xSem_New_Data_Sonar;
+
+xSemaphoreHandle xSem_Walk_Start;
+xSemaphoreHandle xSem_Walk_Stop;
+xSemaphoreHandle xSem_Turn_Left;
+xSemaphoreHandle xSem_Turn_Right;
+xSemaphoreHandle xSem_Turn_Stop;
+xSemaphoreHandle xSem_Tag_Found;
+xSemaphoreHandle xSem_Tag_Lost;
+
+xSemaphoreHandle xSem_Head_Turn_Left;
+xSemaphoreHandle xSem_Head_Turn_Right;
+xSemaphoreHandle xSem_Head_Turn_Stop;
+xSemaphoreHandle xSem_Head_Turn_Reset;
+
+xSemaphoreHandle xSem_Head_Pos_Left_Max;
+xSemaphoreHandle xSem_Head_Pos_Right_Max;
+
+xSemaphoreHandle xSem_Obstacle_Disapear;
+xSemaphoreHandle xSem_Obstacle_Present;
+
+void CMD_HEAD 	(void *pvParameters);
 void OSCILLATEUR 	(void *pvParameters);
 void HEAD_TRACKING 	(void *pvParameters);
 void DECODE_UART_DATA 	(void *pvParameters);
+void GET_SONAR 	(void *pvParameters);
 
-uint8_t	  rx_dma_buffer[16];
+uint8_t rx_dma_buffer[16];
+int sonar_data;
 float servo1,servo2,servo3,servo4,valeur;
 uint16_t out_pulse;
 
 int id_tag, x_tag, y_tag = 0;
-int etat = 0;
-int sens, marche;
 int val;
 
 int main()
 {
+	//Initialize Clock (64MHz)
 	SystemClock_Config();
 
+	//Initialize Console
 	BSP_Console_Init();
 	delay_ms(100);
+	//Initialize LED for debug
+	BSP_LED_Init();
+	delay_ms(100);
 
+	//Initialize Servo
 	BSP_SERVO_INIT();
 	delay_ms(100);
 
+	// Create Event Group                   // <-- Create Event Group here
+	EventGroupHead = xEventGroupCreate();
 
-	my_printf("\r\nConsole Ready!\r\n");
+	// Create Semaphore object
+	xSem_New_Data_Uart 		= xSemaphoreCreateBinary();
+	xSem_New_Data_Sonar 	= xSemaphoreCreateBinary();
 
-	sem_new_data_uart = xSemaphoreCreateBinary();
+	xSem_Tag_Found 			= xSemaphoreCreateBinary();
+	xSem_Tag_Lost 			= xSemaphoreCreateBinary();
 
-	xTaskCreate(OSCILLATEUR, "OSCILLATEUR", 256, NULL, 2, NULL);
-	xTaskCreate(HEAD_TRACKING, "HEAD_TRACKING", 256, NULL, 3, NULL);
-	xTaskCreate(DECODE_UART_DATA, "DECODE_UART_DATA", 256, NULL, 4, NULL);
+	xSem_Walk_Start 		= xSemaphoreCreateBinary();
+	xSem_Walk_Stop 			= xSemaphoreCreateBinary();
+	xSem_Turn_Stop 			= xSemaphoreCreateBinary();
+	xSem_Turn_Right 		= xSemaphoreCreateBinary();
+	xSem_Turn_Left 			= xSemaphoreCreateBinary();
 
+	xSem_Head_Turn_Left 	= xSemaphoreCreateBinary();
+	xSem_Head_Turn_Right 	= xSemaphoreCreateBinary();
+	xSem_Head_Turn_Stop 	= xSemaphoreCreateBinary();
+	xSem_Head_Turn_Reset 	= xSemaphoreCreateBinary();
+
+	xSem_Obstacle_Disapear	= xSemaphoreCreateBinary();
+	xSem_Obstacle_Present	= xSemaphoreCreateBinary();
+
+
+
+	// Create Tasks
+	//xTaskCreate(GET_SONAR, "GET_SONAR", 256, NULL, 3, NULL);
+	xTaskCreate(CMD_HEAD, "CMD_HEAD", 256, NULL, 3, NULL);
+	//xTaskCreate(OSCILLATEUR, "OSCILLATEUR", 256, NULL, 2, NULL);
+	xTaskCreate(HEAD_TRACKING, "HEAD_TRACKING", 256, NULL, 2, NULL);
+	//xTaskCreate(DECODE_UART_DATA, "DECODE_UART_DATA", 256, NULL, 4, NULL);
+
+	//Start Scheduler
+	my_printf("\r\n Pepi Ready! \r\n");
 	vTaskStartScheduler();
 
-	while(1);
+	while(1){
+
+	}
+}
+
+void CMD_HEAD(void *pvParameters){
+
+	while(1)
+	{
+		//xEventGroupSetBits(EventGroupHead, Head_Turn_Stop);
+		//vTaskDelay(3000);
+		//my_printf("(RE)");
+		//xEventGroupSetBits(EventGroupHead, Head_Reset);
+
+		vTaskDelay(3000);
+		my_printf("(LE)");
+		xEventGroupSetBits(EventGroupHead, Head_Turn_Left);
+
+		//vTaskDelay(1000);
+		//my_printf("(ST)");
+		//xEventGroupSetBits(EventGroupHead, Head_Turn_Stop);
+
+		vTaskDelay(3000);
+		my_printf("(RI)");
+		xEventGroupSetBits(EventGroupHead, Head_Turn_Right);
+
+	}
+
+}
+
+void HEAD_TRACKING(void *pvParameters){
+
+	float error, integral;
+
+	//Initialize Sonar
+	//BSP_UTLRASONIC();
+
+	//Set NVIC priority
+	NVIC_SetPriority(TIM2_IRQn , configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY + 2);
+	NVIC_EnableIRQ(TIM2_IRQn);
+
+	EventBits_t uxBits;
+
+
+
+	while(1)
+	{
+		uxBits = xEventGroupWaitBits(EventGroupHead, Head_Reset | Head_Turn_Left | Head_Turn_Right | Head_Turn_Stop, pdTRUE, pdFALSE, portMAX_DELAY);
+
+		if((uxBits & Head_Turn_Stop) == Head_Turn_Stop)
+		{
+			my_printf("St");
+		}
+		if((uxBits & Head_Reset) == Head_Reset)
+		{
+			while( xEventGroupWaitBits(EventGroupHead,Head_Reset | Head_Turn_Left | Head_Turn_Right | Head_Turn_Stop,	pdFALSE, pdTRUE, 10)
+					== 0)
+			{
+				my_printf("Re");
+				Servo_Head = 1500;
+				xEventGroupSetBits(EventGroupHead, Head_Turn_Stop);
+			}
+			my_printf(".");
+		}
+		else if((uxBits & Head_Turn_Right) == Head_Turn_Right)
+		{
+			while( xEventGroupWaitBits(EventGroupHead,Head_Reset | Head_Turn_Left | Head_Turn_Right | Head_Turn_Stop,	pdFALSE, pdTRUE, 10)
+					== 0)
+			{
+				my_printf("Ri");
+				Servo_Head -= 10;
+				if(Servo_Head < 1010) xEventGroupSetBits(EventGroupHead, Head_Turn_Stop);
+			}
+			my_printf(".");
+		}
+		else if((uxBits & Head_Turn_Left) == Head_Turn_Left)
+		{
+			while( xEventGroupWaitBits(EventGroupHead,Head_Reset | Head_Turn_Left | Head_Turn_Right | Head_Turn_Stop,	pdFALSE, pdTRUE, 10)
+					== 0)
+			{
+				my_printf("Le");
+				Servo_Head += 10;
+				if(Servo_Head > 1990) xEventGroupSetBits(EventGroupHead, Head_Turn_Stop);
+			}
+			my_printf(".");
+		}
+
+
+	}
+/*
+	while(1){ // Evitement simple d'obstacle
+		//On avance
+		xSemaphoreGive(xSem_Walk_Start);
+
+		//On attend de rencontrer un obstacle, on s'arrete et on attend 2sec
+		xSemaphoreTake(xSem_Obstacle_Present, portMAX_DELAY);
+		//xSemaphoreGive(xSem_Walk_Stop);
+		//vTaskDelay(2000);
+
+		//Quand on rencontre un obstacle on tourne à gauche jusqu'à la disparition de l'obstacle
+		//xSemaphoreGive(xSem_Walk_Start);
+		xSemaphoreGive(xSem_Turn_Left);
+
+		//On attend que l'obstacle disparaisse
+		xSemaphoreTake(xSem_Obstacle_Disapear,portMAX_DELAY);
+		xSemaphoreGive(xSem_Turn_Stop);
+
+	}
+
+	while(1){ // Tag Tracking
+		error = 0;
+		integral = 0;
+		val = 0;
+
+		xSemaphoreTake(xSem_Tag_Found,portMAX_DELAY);
+
+		while(xSemaphoreTake(xSem_Tag_Lost,10) != pdTRUE)
+		{
+			error = 0 - (x_tag-80);
+			integral = integral + error;
+			val = 1500 + (int)(2*error+ integral*0.2);
+
+			if(val > 1800){
+				if(val > 2000) val = 2000;
+				xSemaphoreGive(xSem_Walk_Start);
+				xSemaphoreGive(xSem_Turn_Right);
+			}
+			else if(val < 1200){
+				if(val < 1000) val = 1000;
+				xSemaphoreGive(xSem_Walk_Start);
+				xSemaphoreGive(xSem_Turn_Left);
+			}
+			else{
+				xSemaphoreGive(xSem_Walk_Stop);
+				xSemaphoreGive(xSem_Turn_Stop);
+			}
+
+			Servo_Head = val;
+		}
+		xSemaphoreTake(xSem_Tag_Found,0);
+		xSemaphoreGive(xSem_Walk_Stop);
+		xSemaphoreGive(xSem_Turn_Stop);
+
+		Servo_Head = 1500;
+
+	}
+*/
+}
+
+void GET_SONAR(void *pvParameters){
+
+	//Initialize Sonar
+	BSP_UTLRASONIC();
+
+	//Set NVIC priority
+	NVIC_SetPriority(TIM2_IRQn , configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY + 2);
+	NVIC_EnableIRQ(TIM2_IRQn);
+
+	while(1){
+		xSemaphoreTake(xSem_New_Data_Sonar, portMAX_DELAY);
+
+		if(sonar_data<350){
+			xSemaphoreTake(xSem_Obstacle_Disapear,0);
+			xSemaphoreGive(xSem_Obstacle_Present);
+		}else{
+			xSemaphoreTake(xSem_Obstacle_Present,0);
+			xSemaphoreGive(xSem_Obstacle_Disapear);
+		}
+
+
+	}
+
 }
 
 void DECODE_UART_DATA(void *pvParameters){
 
 	portBASE_TYPE	xStatus;
 
+	//Initialize UART
 	uart_init();
 
+	//Set NVIC priority
 	NVIC_SetPriority(USART1_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY + 1);
 	NVIC_EnableIRQ(USART1_IRQn);
 
 	while(1){
-		xStatus = xSemaphoreTake(sem_new_data_uart, 500);
+		xStatus = xSemaphoreTake(xSem_New_Data_Uart, 300);
 
 		if (xStatus == pdPASS)
 		{
@@ -73,7 +311,8 @@ void DECODE_UART_DATA(void *pvParameters){
 			if(rx_dma_buffer[0]=='$'){
 				switch (rx_dma_buffer[1]) {
 					case 'T':
-						etat = sscanf(&rx_dma_buffer[2],"%d,%d,%d",&id_tag,&x_tag,&y_tag);
+						sscanf(&rx_dma_buffer[2],"%d,%d,%d",&id_tag,&x_tag,&y_tag);
+						xSemaphoreGive(xSem_Tag_Found);
 						//my_printf("\r\n TAG ID = %d, x = %d, y = %d.\r\n", id_tag, x_tag, y_tag);
 						break;
 
@@ -99,42 +338,14 @@ void DECODE_UART_DATA(void *pvParameters){
 			USART1->CR1 |= USART_CR1_UE;
 		}
 		else{
-			my_printf("\r\n . \r\n");
+			xSemaphoreGive(xSem_Tag_Lost);
 		}
 
 
 	}
 }
 
-void HEAD_TRACKING(void *pvParameters){
 
-	float error, integral;
-
-	while(1){
-		error = 0 - (x_tag-80);
-		integral = integral + error;
-		val = 1500 + (int)(2*error+ integral*0.2);
-
-		if(val > 1800){
-			if(val > 2000) val = 2000;
-			marche = on;
-			sens = droite;
-		}
-		else if(val < 1200){
-			if(val < 1000) val = 1000;
-			marche = on;
-			sens = gauche;
-		}
-		else{
-			marche = off;
-			sens = aucun;
-		}
-
-		TIM1->CCR4 = val;
-		vTaskDelay(10);
-	}
-
-}
 
 void OSCILLATEUR(void *pvParameters){
 
@@ -147,13 +358,20 @@ void OSCILLATEUR(void *pvParameters){
 
 	float t = 25; // init a 25 car cos(25*....) = 0 evite le sursaut au demarage
 
+	int sens = 0;
 
 	while(1){
 
-		if(marche == 1)
+		xSemaphoreTake(xSem_Walk_Start,portMAX_DELAY);
+
+		while(xSemaphoreTake(xSem_Walk_Stop,9)==pdFALSE)
 		{
 			signal_cos = (F*cos((t/100)*2.0*3.14)); // signal de commande
 			signal_sin =(R*sin((t/100)*2.0*3.14));
+
+			if(xSemaphoreTake(xSem_Turn_Right,0)==pdTRUE) sens = droite;
+			if(xSemaphoreTake(xSem_Turn_Left,0)==pdTRUE) sens = gauche;
+			if(xSemaphoreTake(xSem_Turn_Stop,0)==pdTRUE) sens = aucun;
 
 			if(sens == droite)
 			{
@@ -166,8 +384,10 @@ void OSCILLATEUR(void *pvParameters){
 				Servo_Left_Hip = 1500 - signal_sin;
 			}else
 			{
-				Servo_Left_Hip = 1500;
-				Servo_Right_Hip = 1500;
+				Servo_Right_Hip = 1500 - signal_sin;
+				Servo_Left_Hip = 1500 - signal_sin;
+				//Servo_Left_Hip = 1500;
+				//Servo_Right_Hip = 1500;
 			}
 
 			Servo_Left_Leg = 1500 + signal_cos + 50;
@@ -175,29 +395,31 @@ void OSCILLATEUR(void *pvParameters){
 
 			t++;
 			if(t>=100){t=0;}
-		}else
-		{
-			if((t != 25)&&(t != 75))
-			{
-				signal_cos = (F*cos((t/100)*2.0*3.14));
-
-				Servo_Left_Leg = 1500 + signal_cos + 50;
-				Servo_Right_Leg = 1500 + signal_cos - 50;
-
-				t++;
-				if(t>=100){t=0;}
-			}else
-			{
-				Servo_Left_Hip = 0;
-				Servo_Right_Hip = 0;
-				Servo_Left_Leg = 0;
-				Servo_Right_Leg = 0;
-			}
 		}
-		vTaskDelay(dt);
+
+		//On se remet à plat
+
+		while((t != 25)&&(t != 75))
+		{
+			signal_cos = (F*cos((t/100)*2.0*3.14));
+			Servo_Left_Leg = 1500 + signal_cos + 50;
+			Servo_Right_Leg = 1500 + signal_cos - 50;
+
+			t++;
+			if(t>=100){t=0;}
+			vTaskDelay(10);
+		}
+
+		//On coupe les servo's
+		Servo_Left_Hip = 0;
+		Servo_Right_Hip = 0;
+		Servo_Left_Leg = 0;
+		Servo_Right_Leg = 0;
+
+		xSemaphoreTake(xSem_Walk_Start,0);
+		xSemaphoreTake(xSem_Walk_Stop,0);
+
 	}
-
-
 }
 
 /*
