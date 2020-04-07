@@ -1,0 +1,6 @@
+1585917653198	Delete resource 'nucleo-32_F303-master/bsp/inc/mpu9250.h'
+1585917663180	Delete resource 'nucleo-32_F303-master/bsp/inc/spi.h'
+1585917666333	Delete resource 'nucleo-32_F303-master/bsp/src/mpu9250.c'
+1585917668358	Delete resource 'nucleo-32_F303-master/bsp/src/spi.c'
+1585917671637	Delete resource 'nucleo-32_F303-master/app/inc/MadgwickAHRS.h'
+1585917675564	Delete resource 'nucleo-32_F303-master/app/src/MadgwickAHRS.c'

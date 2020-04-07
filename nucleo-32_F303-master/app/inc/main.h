@@ -5,8 +5,9 @@
 #include "bsp.h"
 #include "delay.h"
 #include "math.h"
-#include "spi.h"
 #include "stdio.h"
+#include "i2c.h"
+#include "imu.h"
 
 #include "FreeRTOSConfig.h"
 #include "FreeRTOS.h"

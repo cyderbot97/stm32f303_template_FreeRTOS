@@ -1,20 +1,15 @@
 #include "main.h"
 
-#define aucun 0
-#define droite 1
-#define gauche 2
-#define off 0
-#define on 1
+#define Servo_Right_Leg TIM3->CCR1 //PB4
+#define Servo_Left_Leg TIM3->CCR2 // PB5
+#define Servo_Right_Hip TIM3->CCR3 //PB0
+#define Servo_Left_Hip TIM3->CCR4 //PB1
+#define Servo_Head TIM16->CCR1 //PA12
 
-#define Servo_Right_Leg TIM3->CCR1
-#define Servo_Left_Leg TIM3->CCR2
-
-#define Servo_Right_Hip TIM3->CCR3
-#define Servo_Left_Hip TIM3->CCR4
-
-#define Servo_Head TIM1->CCR4
-
-static uint8_t SystemClock_Config(void);
+#define	RLC	1500	//TIM3->CCR1 = 1520;
+#define	LLC	1500	//TIM3->CCR2 = 1470;
+#define	RHC	1500	//TIM3->CCR3 = 1440;
+#define	LHC	1500 	//TIM3->CCR4 = 1470;
 
 // Define Event Group flags
 #define	Head_Reset			( (EventBits_t)( 0x01 <<0) )
@@ -31,34 +26,36 @@ static uint8_t SystemClock_Config(void);
 #define Walk_Turn_Right		( (EventBits_t)( 0x01 <<4) )
 #define Walk_Turn_Left		( (EventBits_t)( 0x01 <<5) )
 
-
 // Kernel objects
 EventGroupHandle_t EventGroupHead;
 EventGroupHandle_t EventGroupWalk;
-
 xSemaphoreHandle xSem_New_Data_Uart;
 xSemaphoreHandle xSem_New_Data_Sonar;
-
 xSemaphoreHandle xSem_Tag_Found;
 xSemaphoreHandle xSem_Tag_Lost;
-
 xSemaphoreHandle xSem_Obstacle_Disapear;
 xSemaphoreHandle xSem_Obstacle_Present;
 
-void CMD_HEAD 	(void *pvParameters);
-void OSCILLATEUR 	(void *pvParameters);
-void HEAD_TRACKING 	(void *pvParameters);
-void DECODE_UART_DATA 	(void *pvParameters);
-void GET_SONAR 	(void *pvParameters);
+// Functions
+static uint8_t SystemClock_Config(void);
 
+//FreeRTOS Tasks
+void IMU_DATA_PROCESS	(void *pvParameters);
+void TASK_CMD_TEST 		(void *pvParameters);
+void MOVE_CONTROL 		(void *pvParameters);
+void HEAD_CONTROL 		(void *pvParameters);
+void DECODE_UART_DATA 	(void *pvParameters);
+void GET_SONAR 			(void *pvParameters);
+
+//GLOBAL VARIABLE
 uint8_t rx_dma_buffer[16];
 int sonar_data;
-float servo1,servo2,servo3,servo4,valeur;
-uint16_t out_pulse;
-
+double roll,pitch,yaw;
+uint8_t mpu_data[6];
 int id_tag, x_tag, y_tag = 0;
-int val;
-
+float yaw_c;
+uint32_t servo;
+int16_t x,y,z;
 int main()
 {
 	//Initialize Clock (64MHz)
@@ -67,8 +64,17 @@ int main()
 	//Initialize Console
 	BSP_Console_Init();
 	delay_ms(100);
+
 	//Initialize LED for debug
 	BSP_LED_Init();
+	delay_ms(100);
+
+	//Initialize I2C
+	BSP_I2C1_Init();
+	delay_ms(100);
+
+	//Initialize IMU
+	BNO055_Init();
 	delay_ms(100);
 
 	//Initialize Servo
@@ -90,127 +96,120 @@ int main()
 	xSem_Obstacle_Present	= xSemaphoreCreateBinary();
 
 	// Create Tasks
-	//xTaskCreate(GET_SONAR, "GET_SONAR", 256, NULL, 3, NULL);
-	xTaskCreate(CMD_HEAD, "CMD_HEAD", 256, NULL, 2, NULL);
-	xTaskCreate(OSCILLATEUR, "OSCILLATEUR", 256, NULL, 2, NULL);
-	//xTaskCreate(HEAD_TRACKING, "HEAD_TRACKING", 256, NULL, 2, NULL);
+	//xTaskCreate(IMU_DATA_PROCESS, "IMU_DATA_PROCESS", 256, NULL, 3, NULL);
+	//xTaskCreate(GET_SONAR, "GET_SONAR", 256, NULL, 2, NULL);
+	xTaskCreate(TASK_CMD_TEST, "TASK_CMD_TEST", 256, NULL, 2, NULL);
+	xTaskCreate(MOVE_CONTROL, "MOVE_CONTROL", 256, NULL, 2, NULL);
+	xTaskCreate(HEAD_CONTROL, "HEAD_CONTROL", 256, NULL, 2, NULL);
 	//xTaskCreate(DECODE_UART_DATA, "DECODE_UART_DATA", 256, NULL, 4, NULL);
 
 	//Start Scheduler
 	my_printf("\r\n Pepi Ready! \r\n");
 	vTaskStartScheduler();
 
+	//uint8_t rx_data[1];
+
+	//uint8_t err;
+	while(1){
+
+		/*BSP_LED_Toggle();
+
+		err = BSP_I2C1_Read(BNO055_ADDRESS_A, BNO055_EULER_H_LSB_ADDR, &mpu_data,6);
+
+
+		x = (((int16_t)mpu_data[1])<<8) | ((int16_t)mpu_data[0]);
+		y = (((int16_t)mpu_data[3])<<8) | ((int16_t)mpu_data[2]);
+		z = (((int16_t)mpu_data[5])<<8) | ((int16_t)mpu_data[4]);
+
+		my_printf("x = %d, y = %d, z = %d.\r\n",x/16,y/16,z/16);
+
+		yaw = ((float)x) / 16.0;
+		pitch = ((float)y) / 16.0;
+		roll = ((float)z) / 16.0;
+
+		delay_ms(10);*/
+	}
+}
+
+/*
+ * IMU data treatment
+ */
+void IMU_DATA_PROCESS (void *pvParameters)
+{
+
+
 	while(1){
 
 	}
 }
+/*
+ * Task Command Test
+ */
+void TASK_CMD_TEST(void *pvParameters){
 
-void CMD_HEAD(void *pvParameters){
-
-	while(1)
-	{
-		//xEventGroupSetBits(EventGroupHead, Head_Turn_Stop);
-		//vTaskDelay(3000);
-		//my_printf("(RE)");
-		//xEventGroupSetBits(EventGroupHead, Head_Reset);
-
-
-
-		//vTaskDelay(1000);
-		//my_printf("(ST)");
-		//xEventGroupSetBits(EventGroupHead, Head_Turn_Stop);
-		/*
-		vTaskDelay(3000);
-		my_printf("(Fr)");
+	while(1){
 		xEventGroupSetBits(EventGroupWalk, Walk_Forward);
-		vTaskDelay(3000);
-		my_printf("(St)");
-		xEventGroupSetBits(EventGroupWalk, Walk_Stop);
+		vTaskDelay(portMAX_DELAY);
+		//vTaskDelay(10000);
 
-		vTaskDelay(3000);
-		my_printf("(Lf)");
-		xEventGroupSetBits(EventGroupWalk, Walk_Turn_Left);
+		//xEventGroupSetBits(EventGroupWalk, Walk_Stop);
 
-		vTaskDelay(3000);
-		my_printf("(Tst)");
-		xEventGroupSetBits(EventGroupWalk, Walk_Turn_Stop);
-
-		vTaskDelay(3000);
-		my_printf("(Ri)");
-		xEventGroupSetBits(EventGroupWalk, Walk_Turn_Right);
-
-		vTaskDelay(3000);
-		my_printf("(Ba)");
-		xEventGroupSetBits(EventGroupWalk, Walk_Backward);*/
-
+		//vTaskDelay(2000);
 	}
-
-}
-
-void HEAD_TRACKING(void *pvParameters){
-
-	float error, integral;
-
-	//Initialize Sonar
-	//BSP_UTLRASONIC();
-
-	//Set NVIC priority
-	NVIC_SetPriority(TIM2_IRQn , configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY + 2);
-	NVIC_EnableIRQ(TIM2_IRQn);
-
-	EventBits_t uxBits;
-
 	while(1)
 	{
-		uxBits = xEventGroupWaitBits(EventGroupHead, Head_Reset | Head_Turn_Left | Head_Turn_Right | Head_Turn_Stop, pdTRUE, pdFALSE, portMAX_DELAY);
+		/*
+		 * Recherche et evitement d'obstacle
+		 */
+		xEventGroupSetBits(EventGroupWalk, Walk_Forward);
+		xSemaphoreTake(xSem_Obstacle_Present,portMAX_DELAY);
 
-		if((uxBits & Head_Turn_Stop) == Head_Turn_Stop)
+		xEventGroupSetBits(EventGroupWalk, Walk_Stop);
+		xEventGroupSetBits(EventGroupHead, Head_Turn_Left);
+		xEventGroupWaitBits(EventGroupHead, Head_Pos_Max_Left, pdFALSE, pdFALSE, portMAX_DELAY);
+
+		if(xSemaphoreTake(xSem_Obstacle_Disapear,1000) !=pdTRUE)
 		{
-			my_printf("St");
-		}
-		if((uxBits & Head_Reset) == Head_Reset)
-		{
-			while( xEventGroupWaitBits(EventGroupHead,Head_Reset | Head_Turn_Left | Head_Turn_Right | Head_Turn_Stop,	pdFALSE, pdTRUE, 10)
-					== 0)
+			xEventGroupSetBits(EventGroupHead, Head_Turn_Right);
+			xEventGroupWaitBits(EventGroupHead, Head_Pos_Max_Right, pdFALSE, pdFALSE, portMAX_DELAY);
+
+			if(xSemaphoreTake(xSem_Obstacle_Disapear,1000) !=pdTRUE)
 			{
-				my_printf("Re");
-				Servo_Head = 1500;
-				xEventGroupSetBits(EventGroupHead, Head_Turn_Stop);
+				xEventGroupSetBits(EventGroupHead, Head_Reset);
+				xEventGroupSetBits(EventGroupWalk, Walk_Turn_Right);
+				vTaskDelay(3000);
+				xSemaphoreTake(xSem_Obstacle_Disapear,portMAX_DELAY);
 			}
-			my_printf(".");
-		}
-		else if((uxBits & Head_Turn_Right) == Head_Turn_Right)
-		{
-			while( xEventGroupWaitBits(EventGroupHead,Head_Reset | Head_Turn_Left | Head_Turn_Right | Head_Turn_Stop,	pdFALSE, pdTRUE, 10)
-					== 0)
+			else
 			{
-				my_printf("Ri");
-				Servo_Head -= 10;
-				if(Servo_Head < 1010) xEventGroupSetBits(EventGroupHead, Head_Turn_Stop);
+				xEventGroupSetBits(EventGroupHead, Head_Reset);
+				vTaskDelay(1000);
+				xEventGroupSetBits(EventGroupWalk, Walk_Turn_Right);
+				vTaskDelay(3000);
+				xSemaphoreTake(xSem_Obstacle_Disapear,portMAX_DELAY);
 			}
-			my_printf(".");
 		}
-		else if((uxBits & Head_Turn_Left) == Head_Turn_Left)
+		else
 		{
-			while( xEventGroupWaitBits(EventGroupHead,Head_Reset | Head_Turn_Left | Head_Turn_Right | Head_Turn_Stop,	pdFALSE, pdTRUE, 10)
-					== 0)
-			{
-				my_printf("Le");
-				Servo_Head += 10;
-				if(Servo_Head > 1990) xEventGroupSetBits(EventGroupHead, Head_Turn_Stop);
-			}
-			my_printf(".");
+			xEventGroupSetBits(EventGroupHead, Head_Reset);
+			vTaskDelay(1000);
+			xEventGroupSetBits(EventGroupWalk, Walk_Turn_Left);
+			vTaskDelay(3000);
+			xSemaphoreTake(xSem_Obstacle_Disapear,portMAX_DELAY);
 		}
 
-
+		xEventGroupSetBits(EventGroupHead, Head_Reset);
+		vTaskDelay(1000);
 	}
 
 }
-
+/*
+ * Get Sonar
+ */
 void GET_SONAR(void *pvParameters){
 
 	//Initialize Sonar
-	BSP_UTLRASONIC();
+	BSP_SONAR();
 
 	//Set NVIC priority
 	NVIC_SetPriority(TIM2_IRQn , configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY + 2);
@@ -219,19 +218,20 @@ void GET_SONAR(void *pvParameters){
 	while(1){
 		xSemaphoreTake(xSem_New_Data_Sonar, portMAX_DELAY);
 
-		if(sonar_data<350){
+		//BSP_LED_Toggle();
+		my_printf("\r\n sonar = %d,\r\n", sonar_data);
+		if(sonar_data<1500){
 			xSemaphoreTake(xSem_Obstacle_Disapear,0);
 			xSemaphoreGive(xSem_Obstacle_Present);
 		}else{
 			xSemaphoreTake(xSem_Obstacle_Present,0);
 			xSemaphoreGive(xSem_Obstacle_Disapear);
 		}
-
-
 	}
-
 }
-
+/*
+ * Decode Uart Data from OPENMV CAM
+ */
 void DECODE_UART_DATA(void *pvParameters){
 
 	portBASE_TYPE	xStatus;
@@ -240,8 +240,9 @@ void DECODE_UART_DATA(void *pvParameters){
 	uart_init();
 
 	//Set NVIC priority
+	/*
 	NVIC_SetPriority(USART1_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY + 1);
-	NVIC_EnableIRQ(USART1_IRQn);
+	NVIC_EnableIRQ(USART1_IRQn);*/
 
 	while(1){
 		xStatus = xSemaphoreTake(xSem_New_Data_Uart, 300);
@@ -286,58 +287,168 @@ void DECODE_UART_DATA(void *pvParameters){
 
 	}
 }
+/*
+ *Head control
+ */
+void HEAD_CONTROL(void *pvParameters){
 
-void OSCILLATEUR(void *pvParameters){
+	EventBits_t uxBits;
+	Servo_Head = 1500;
 
-	float F = 250;
-	float R = 100; //torsion
+	while(1)
+	{
+		uxBits = xEventGroupWaitBits(EventGroupHead, Head_Reset | Head_Turn_Left | Head_Turn_Right | Head_Turn_Stop, pdTRUE, pdFALSE, portMAX_DELAY);
 
-	float dt = 10; //temps boucle
+		if((uxBits & Head_Turn_Stop) == Head_Turn_Stop)
+		{
+			//my_printf("St");
+		}
+		if((uxBits & Head_Reset) == Head_Reset)
+		{
+			xEventGroupClearBits(EventGroupHead, Head_Pos_Max_Left);
+			xEventGroupClearBits(EventGroupHead, Head_Pos_Max_Right);
 
-	float signal_sin,signal_cos;
+			while( xEventGroupWaitBits(EventGroupHead,Head_Reset | Head_Turn_Left | Head_Turn_Right | Head_Turn_Stop,	pdFALSE, pdTRUE, 10)
+					== 0)
+			{
+				//my_printf("Re");
+				Servo_Head = 1500;
+				xEventGroupSetBits(EventGroupHead, Head_Turn_Stop);
+			}
+			//my_printf(".");
+		}
+		else if((uxBits & Head_Turn_Right) == Head_Turn_Right)
+		{
+			xEventGroupClearBits(EventGroupHead, Head_Pos_Max_Left);
+
+			while( xEventGroupWaitBits(EventGroupHead,Head_Reset | Head_Turn_Left | Head_Turn_Right | Head_Turn_Stop,	pdFALSE, pdTRUE, 10)
+					== 0)
+			{
+				//my_printf("Ri");
+				Servo_Head -= 10;
+				if(Servo_Head < 1010) {
+					xEventGroupSetBits(EventGroupHead, Head_Turn_Stop);
+					xEventGroupSetBits(EventGroupHead, Head_Pos_Max_Right);
+				}
+			}
+			//my_printf(".");
+		}
+		else if((uxBits & Head_Turn_Left) == Head_Turn_Left)
+		{
+			xEventGroupClearBits(EventGroupHead, Head_Pos_Max_Right);
+			while( xEventGroupWaitBits(EventGroupHead,Head_Reset | Head_Turn_Left | Head_Turn_Right | Head_Turn_Stop,	pdFALSE, pdTRUE, 10)
+					== 0)
+			{
+				//my_printf("Le");
+				Servo_Head += 10;
+				if(Servo_Head > 1990) {
+					xEventGroupSetBits(EventGroupHead, Head_Turn_Stop);
+					xEventGroupSetBits(EventGroupHead, Head_Pos_Max_Left);
+				}
+			}
+			//my_printf(".");
+		}
+
+	}
+
+}
+float signal_sin,signal_cos,signal_cos_arms,signal_sin_R,signal_sin_L,signal_cmd;
+uint32_t servog, servod;
+float error_c,integral;
+/*
+ * Move control
+ */
+void MOVE_CONTROL(void *pvParameters){
+
+	float F = 250; //Bascule
+	float R = 50; //Torsion
+	float L = 100;
+	float B = 250; //Rot des bras
+
+	int DF = 30;
 
 	float t = 25; // init a 25 car cos(25*....) = 0 evite le sursaut au demarage
 
-
 	EventBits_t uxBits;
+
+	float Kp = 0.1;
+	float Ki = 10;
+	float phi = 0;
+
 
 	while(1)
 	{
 
 		uxBits = xEventGroupWaitBits(EventGroupWalk, Walk_Forward | Walk_Backward |Walk_Turn_Left | Walk_Turn_Right | Walk_Turn_Stop, pdTRUE, pdFALSE, portMAX_DELAY);
-		//my_printf("!");
+
+		signal_cmd = yaw*8.3;
 		while( xEventGroupWaitBits(EventGroupWalk,
 				Walk_Stop | Walk_Forward | Walk_Backward | Walk_Turn_Left | Walk_Turn_Right | Walk_Turn_Stop,
-				pdFALSE, pdFALSE, 9) == 0)
+				pdFALSE, pdFALSE, 15) == 0)
 		{
-			signal_cos = (F*cos((t/100)*2.0*3.14)); // signal de commande
-			signal_sin =(R*sin((t/100)*2.0*3.14));
+			phi = 3.14/2;
+			signal_cos = (F*cos((t/100)*2.0*3.14));
+			signal_cos_arms = (B*cos((t/100)*2.0*3.14));
+			//signal_cmd = 0;//100*sin((t/100)*2.0*3.14);
 
 			if((uxBits & Walk_Turn_Left) == Walk_Turn_Left)
 			{
-				Servo_Right_Hip = 1500 - signal_sin;
-				Servo_Left_Hip = 1500 + signal_sin;
+				//Servo_Right_Hip = RHC - signal_sin;
+				//Servo_Left_Hip = LHC + signal_sin;
 			}
 			else if((uxBits & Walk_Turn_Right) == Walk_Turn_Right)
 			{
-				Servo_Right_Hip = 1500 + signal_sin;
-				Servo_Left_Hip = 1500 - signal_sin;
+				//Servo_Right_Hip = RHC + signal_sin;
+				//Servo_Left_Hip = LHC - signal_sin;
 			}else
 			{
-				Servo_Right_Hip = 1500 - signal_sin;
-				Servo_Left_Hip = 1500 - signal_sin;
+				BSP_I2C1_Read(BNO055_ADDRESS_A, BNO055_EULER_H_LSB_ADDR, &mpu_data,2);
+				x = (((int16_t)mpu_data[1])<<8) | ((int16_t)mpu_data[0]);
+				yaw = ((float)x) / 16.0;
+
+				if(yaw > 180) yaw = -1 * (360-yaw);
+
+				//PID
+				Kp = 3;
+				error_c = Kp*(0 - yaw);
+
+				/*
+
+				if(yaw <= 180){
+					error_c = Kp*(0 - yaw);
+				}else{
+					error_c = Kp*(360 - yaw);
+				}
+
+				*/
+
+				signal_sin_R = ((0+error_c)*sin((t/100)*2.0*3.14));
+				signal_sin_L = ((0-error_c)*sin((t/100)*2.0*3.14));
+
+
+				if(signal_sin_R >  100) signal_sin_R =  100;
+				if(signal_sin_R < -100) signal_sin_R = -100;
+
+				if(signal_sin_L >  100) signal_sin_L =  100;
+				if(signal_sin_L < -150) signal_sin_L = -100;
+
+				Servo_Right_Hip = (uint32_t)(1500 - signal_sin_R);
+				Servo_Left_Hip 	= (uint32_t)(1500 - signal_sin_L);
 			}
 
 			if((uxBits & Walk_Backward) == Walk_Backward)
 			{
-				Servo_Left_Leg = 1500 - signal_cos + 50;
-								Servo_Right_Leg = 1500 - signal_cos - 50;
+				//Servo_Left_Leg = LLC - signal_cos + DF;
+				//Servo_Right_Leg = RLC - signal_cos - DF;
 			}
 			else
 			{
-				Servo_Left_Leg = 1500 + signal_cos + 50;
-				Servo_Right_Leg = 1500 + signal_cos - 50;
+				Servo_Left_Leg = LLC + signal_cos + DF ;
+				Servo_Right_Leg = RLC + signal_cos - DF;
 			}
+
+			//TIM1->CCR1 = (1000 + B) + signal_cos_arms; // right arm
+			//TIM1->CCR2 = (2000 - B) + signal_cos_arms; // left arm
 
 			t++;
 			if(t>=100){t=0;}
@@ -346,11 +457,14 @@ void OSCILLATEUR(void *pvParameters){
 		{
 			//Eventgroup sur Walk_Stop -> on descend pepere
 			//my_printf("|");
+			Servo_Left_Hip  = LHC;
+			Servo_Right_Hip = RHC;
+
 			while((t != 25)&&(t != 75))
 			{
 				signal_cos = (F*cos((t/100)*2.0*3.14));
-				Servo_Left_Leg = 1500 + signal_cos + 50;
-				Servo_Right_Leg = 1500 + signal_cos - 50;
+				Servo_Left_Leg = LLC + signal_cos + 50;
+				Servo_Right_Leg = RLC + signal_cos - 50;
 
 				t++;
 				if(t>=100){t=0;}
@@ -358,9 +472,9 @@ void OSCILLATEUR(void *pvParameters){
 			}
 
 			//On coupe les servo's
-			Servo_Left_Hip = 0;
+			Servo_Left_Hip 	= 0;
 			Servo_Right_Hip = 0;
-			Servo_Left_Leg = 0;
+			Servo_Left_Leg 	= 0;
 			Servo_Right_Leg = 0;
 		}
 
