@@ -1,1 +1,67 @@
+17:18:54 **** Incremental Build of configuration Debug for project nucleo-32_F303-master ****
+Info: Internal Builder is used for build
+arm-atollic-eabi-gcc -c ..\app\src\main.c -mthumb -mcpu=cortex-m4 -mfloat-abi=hard -mfpu=fpv4-sp-d16 -std=gnu11 -DSTM32F303x8 -DUSE_HSI -IC:\Users\cyril\Documents\GitHub\stm32f303_template_FreeRTOS\nucleo-32_F303-master\app\inc -IC:\Users\cyril\Documents\GitHub\stm32f303_template_FreeRTOS\nucleo-32_F303-master\FreeRTOS\Source\include -IC:\Users\cyril\Documents\GitHub\stm32f303_template_FreeRTOS\nucleo-32_F303-master\FreeRTOS\Source\portable\GCC\ARM_CM4F -IC:\Users\cyril\Documents\GitHub\stm32f303_template_FreeRTOS\nucleo-32_F303-master\bsp\inc -IC:\Users\cyril\Documents\GitHub\stm32f303_template_FreeRTOS\nucleo-32_F303-master\cmsis\core -IC:\Users\cyril\Documents\GitHub\stm32f303_template_FreeRTOS\nucleo-32_F303-master\cmsis\device\inc -O0 -g -fstack-usage -Wall -specs=nano.specs -o app\src\main.o 
+..\app\src\main.c: In function 'GET_IMU':
+..\app\src\main.c:142:60: warning: passing argument 3 of 'BSP_I2C1_Read' from incompatible pointer type [-Wincompatible-pointer-types]
+   BSP_I2C1_Read(BNO055_ADDRESS_A, BNO055_EULER_H_LSB_ADDR, &mpu_data,2);
+                                                            ^
+In file included from C:\Users\cyril\Documents\GitHub\stm32f303_template_FreeRTOS\nucleo-32_F303-master\app\inc/main.h:9:0,
+                 from ..\app\src\main.c:1:
+C:\Users\cyril\Documents\GitHub\stm32f303_template_FreeRTOS\nucleo-32_F303-master\bsp\inc/i2c.h:14:9: note: expected 'uint8_t * {aka unsigned char *}' but argument is of type 'uint8_t (*)[6] {aka unsigned char (*)[6]}'
+ uint8_t BSP_I2C1_Read( uint8_t device_address,uint8_t register_address,uint8_t *buffer,uint8_t nbytes );
+         ^~~~~~~~~~~~~
+..\app\src\main.c:137:14: warning: unused variable 'z' [-Wunused-variable]
+  int16_t x,y,z;
+              ^
+..\app\src\main.c:137:12: warning: unused variable 'y' [-Wunused-variable]
+  int16_t x,y,z;
+            ^
+..\app\src\main.c: In function 'DECODE_UART_DATA':
+..\app\src\main.c:284:14: warning: pointer targets in passing argument 1 of 'sscanf' differ in signedness [-Wpointer-sign]
+       sscanf(&rx_dma_buffer[2],"%d,%d,%d",&id_tag,&x_tag,&y_tag);
+              ^
+In file included from c:\program files (x86)\atollic\truestudio for stm32 9.3.0\armtools\arm-atollic-eabi\include\sys\reent.h:13:0,
+                 from c:\program files (x86)\atollic\truestudio for stm32 9.3.0\armtools\arm-atollic-eabi\include\math.h:5,
+                 from C:\Users\cyril\Documents\GitHub\stm32f303_template_FreeRTOS\nucleo-32_F303-master\app\inc/main.h:7,
+                 from ..\app\src\main.c:1:
+c:\program files (x86)\atollic\truestudio for stm32 9.3.0\armtools\arm-atollic-eabi\include\stdio.h:204:5: note: expected 'const char * restrict' but argument is of type 'uint8_t * {aka unsigned char *}'
+ int _EXFUN(sscanf, (const char *__restrict, const char *__restrict, ...)
+     ^
+..\app\src\main.c: In function 'MOVE_CONTROL':
+..\app\src\main.c:420:8: warning: unused variable 'abs_error' [-Wunused-variable]
+  float abs_error;
+        ^~~~~~~~~
+..\app\src\main.c:418:8: warning: unused variable 'phi' [-Wunused-variable]
+  float phi = 0;
+        ^~~
+..\app\src\main.c:417:8: warning: unused variable 'Ki' [-Wunused-variable]
+  float Ki = 10;
+        ^~
+..\app\src\main.c:416:8: warning: unused variable 'Kp' [-Wunused-variable]
+  float Kp = 3;
+        ^~
+..\app\src\main.c:407:8: warning: unused variable 'L' [-Wunused-variable]
+  float L = 100;
+        ^
+..\app\src\main.c: In function 'MOVE_CONTROL_IMU':
+..\app\src\main.c:562:14: warning: variable 'uxBits' set but not used [-Wunused-but-set-variable]
+  EventBits_t uxBits;
+              ^~~~~~
+..\app\src\main.c:555:8: warning: unused variable 'L' [-Wunused-variable]
+  float L = 100;
+        ^
+..\app\src\main.c:554:8: warning: unused variable 'R' [-Wunused-variable]
+  float R = 50; //Torsion
+        ^
+arm-atollic-eabi-gcc -o nucleo-32_F303-master.elf .metadata\.plugins\org.eclipse.cdt.make.core\specs.o FreeRTOS\Source\croutine.o FreeRTOS\Source\event_groups.o FreeRTOS\Source\list.o FreeRTOS\Source\portable\GCC\ARM_CM4F\port.o FreeRTOS\Source\portable\MemMang\heap_1.o FreeRTOS\Source\queue.o FreeRTOS\Source\stream_buffer.o FreeRTOS\Source\tasks.o FreeRTOS\Source\timers.o app\src\main.o app\src\printf-stdarg.o app\src\stm32f3xx_it.o bsp\src\bsp.o bsp\src\delay.o bsp\src\i2c.o bsp\src\imu.o cmsis\device\src\startup_stm32f303x8.o cmsis\device\src\system_stm32f3xx.o -mthumb -mcpu=cortex-m4 -mfloat-abi=hard -mfpu=fpv4-sp-d16 -TC:\Users\cyril\Documents\GitHub\stm32f303_template_FreeRTOS\nucleo-32_F303-master\STM32F303K8Tx_FLASH.ld -specs=nosys.specs -static -Wl,-cref,-u,Reset_Handler -Wl,-Map=nucleo-32_F303-master.map -Wl,--defsym=malloc_getpagesize_P=0x80 -Wl,--start-group -lc -lm -Wl,--end-group -specs=nano.specs 
+C:\Program Files (x86)\Atollic\TrueSTUDIO for STM32 9.3.0\ide\jre\bin\java -jar C:\Program Files (x86)\Atollic\TrueSTUDIO for STM32 9.3.0\Tools\arm-atollic-reports.jar sizeinfo list nucleo-32_F303-master.elf 
+Generate build reports...
+Print size information
+   text	   data	    bss	    dec	    hex	filename
+  45472	    484	  10384	  56340	   dc14	nucleo-32_F303-master.elf
+Print size information done
+Generate listing file
+Output sent to: nucleo-32_F303-master.list
+Generate listing file done
+Generate build reports done
 Info: Nothing to build for nucleo-32_F303-master

@@ -51,7 +51,7 @@ uint8_t BNO055_Init(void){
 		delay_ms(30);
 
 		//Set Mode Config
-		data = OPERATION_MODE_NDOF;
+		data = OPERATION_MODE_IMUPLUS;
 		BSP_I2C1_Write(BNO055_ADDRESS_A, BNO055_OPR_MODE_ADDR, &data,1);
 		delay_ms(1000);
 

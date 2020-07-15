@@ -4,7 +4,7 @@
 #define Servo_Left_Leg TIM3->CCR2 // PB5
 #define Servo_Right_Hip TIM3->CCR3 //PB0
 #define Servo_Left_Hip TIM3->CCR4 //PB1
-#define Servo_Head TIM1->CCR1 //PA8
+#define Servo_Head TIM16->CCR1 //PA12
 
 #define	RLC	1500	//TIM3->CCR1 = 1520;
 #define	LLC	1500	//TIM3->CCR2 = 1470;
@@ -39,8 +39,6 @@ xSemaphoreHandle xSem_Tag_Lost;
 xSemaphoreHandle xSem_Obstacle_Disapear;
 xSemaphoreHandle xSem_Obstacle_Present;
 xSemaphoreHandle xSem_Cons_Ok;
-xSemaphoreHandle xSem_Head_Track_Start;
-xSemaphoreHandle xSem_Head_Track_Stop;
 
 // Functions
 static uint8_t SystemClock_Config(void);
@@ -105,21 +103,17 @@ int main()
 	xSem_Obstacle_Disapear	= xSemaphoreCreateBinary();
 	xSem_Obstacle_Present	= xSemaphoreCreateBinary();
 
-	xSem_Cons_Ok			= xSemaphoreCreateBinary();
-
-	xSem_Head_Track_Start	= xSemaphoreCreateBinary();
-	xSem_Head_Track_Stop	= xSemaphoreCreateBinary();
+	xSem_Cons_Ok	= xSemaphoreCreateBinary();
 
 	// Create Tasks
-
+	xTaskCreate(GET_IMU, "GET_IMU", 256, NULL, 3, NULL);
 	//xTaskCreate(GET_SONAR, "GET_SONAR", 256, NULL, 2, NULL);
-	xTaskCreate(TASK_CMD_TEST, "TASK_CMD_TEST", 256, NULL, 5, NULL);
+	xTaskCreate(TASK_CMD_TEST, "TASK_CMD_TEST", 256, NULL, 2, NULL);
 	//xTaskCreate(MOVE_CONTROL, "MOVE_CONTROL", 256, NULL, 2, NULL);
-	xTaskCreate(MOVE_CONTROL_IMU, "MOVE_CONTROL_IMU", 256, NULL, 3, NULL);
-	xTaskCreate(HEAD_CONTROL_TRACKING, "HEAD_CONTROL_TRACKING", 256, NULL, 4, NULL);
+	xTaskCreate(MOVE_CONTROL_IMU, "MOVE_CONTROL_IMU", 256, NULL, 2, NULL);
+	xTaskCreate(HEAD_CONTROL_TRACKING, "HEAD_CONTROL_TRACKING", 256, NULL, 2, NULL);
 	//xTaskCreate(HEAD_CONTROL, "HEAD_CONTROL", 256, NULL, 2, NULL);
-	xTaskCreate(DECODE_UART_DATA, "DECODE_UART_DATA", 256, NULL, 1, NULL);
-	xTaskCreate(GET_IMU, "GET_IMU", 256, NULL, 1, NULL);
+	xTaskCreate(DECODE_UART_DATA, "DECODE_UART_DATA", 256, NULL, 2, NULL);
 
 	//Start Scheduler
 	my_printf("\r\n Pepi Ready! \r\n");
@@ -152,22 +146,9 @@ void GET_IMU(void *pvParameters){
  */
 void TASK_CMD_TEST(void *pvParameters){
 
-	while(1)
-	{
-		xSemaphoreTake(xSem_Tag_Found,portMAX_DELAY);
-		xSemaphoreGive(xSem_Head_Track_Start);
+	while(1){
 		xEventGroupSetBits(EventGroupWalk, Walk_Imu_Go);
-
-		xSemaphoreTake(xSem_Tag_Lost,portMAX_DELAY);
-		xEventGroupSetBits(EventGroupWalk, Walk_Imu_Stop);
-		xSemaphoreGive(xSem_Head_Track_Stop);
-
-
-	}
-
-	while(0){
-		xEventGroupSetBits(EventGroupWalk, Walk_Imu_Go);
-		vTaskDelay(portMAX_DELAY);
+		vTaskDelay(5000);
 		xEventGroupSetBits(EventGroupWalk, Walk_Imu_Stop);
 		vTaskDelay(5000);
 
@@ -280,22 +261,13 @@ void DECODE_UART_DATA(void *pvParameters){
 			if(rx_dma_buffer[0]=='$'){
 				switch (rx_dma_buffer[1]) {
 					case 'T':
-						//decodage de la tram
 						sscanf(&rx_dma_buffer[2],"%d,%d,%d",&id_tag,&x_tag,&y_tag);
-
-						//reset du semaphore xSem_Tag_Lost
-						xSemaphoreTake(xSem_Tag_Lost, 0);
-
-						//set du semaphore xSem_Tag_Found
 						xSemaphoreGive(xSem_Tag_Found);
-
-						//Debug
 						//my_printf("\r\n TAG ID = %d, x = %d, y = %d.\r\n", id_tag, x_tag, y_tag);
 						break;
 
 					default:
-						//Debug
-						//my_printf("\r\n Error format\r\n");
+						my_printf("\r\n Error format\r\n");
 						break;
 				}
 			}
@@ -316,13 +288,7 @@ void DECODE_UART_DATA(void *pvParameters){
 			USART1->CR1 |= USART_CR1_UE;
 		}
 		else{
-			//Reset du semaphore xSem_Tag_found
-			xSemaphoreTake(xSem_Tag_Found, 0);
-
-			//Set du semaphore xSem_Tag_Lost
 			xSemaphoreGive(xSem_Tag_Lost);
-
-			//Reset id Tag
 			x_tag = 0;
 		}
 
@@ -498,7 +464,6 @@ void MOVE_CONTROL(void *pvParameters){
 
 float pos_servo;
 uint32_t cmd;
-
 void HEAD_CONTROL_TRACKING(void *pvParameters){
 
 	float error_track, integral;
@@ -510,40 +475,23 @@ void HEAD_CONTROL_TRACKING(void *pvParameters){
 
 	while(1){
 
-		//xSemaphoreTake(xSem_Tag_Found, portMAX_DELAY);
+		error_track = 0 - (x_tag/10); // en deg
+		integral = integral + error_track;
 
-		xSemaphoreTake(xSem_Head_Track_Start, portMAX_DELAY);
+		pos_servo = -1*(kp*error_track+ki*integral);
 
+		if(pos_servo > 60) cmd = 60;
+		if(pos_servo < -60) cmd = -60;
 
-		//while(xSemaphoreTake(xSem_Tag_Lost, 10) != pdPASS ){
-		while(xSemaphoreTake(xSem_Head_Track_Stop, 10) != pdPASS ){
+		cmd = 1500 - pos_servo*500/60;
 
-			error_track = 0 - (x_tag/10); // en deg (/10 pour récupérer la valeur decimal
-			integral = integral + error_track;
+		if(cmd>2000) cmd = 2000;
+		if(cmd<1000) cmd = 1000;
 
-			pos_servo = -1*(kp*error_track+ki*integral);
+		Servo_Head = cmd;
+		cons = yaw + pos_servo + x_tag/10;
 
-			//if(pos_servo > 60) pos_servo = 60;
-			//if(pos_servo < -60) pos_servo = -60;
-
-			cmd = 1500 - pos_servo*500/60;
-
-			if(cmd>2000) cmd = 2000;
-			if(cmd<1000) cmd = 1000;
-
-			Servo_Head = cmd;
-			cons = yaw + pos_servo + x_tag/10;
-
-			vTaskDelay(dt);
-		}
-		//reset de la position de tête quand on perd le tag
-		Servo_Head = 1500;
-
-		//reset des variables
-		cmd = 1500;
-		error_track = 0;
-		integral = 0;
-
+		vTaskDelay(dt);
 	}
 
 }
@@ -566,7 +514,6 @@ void MOVE_CONTROL_IMU(void *pvParameters){
 	float abs_error;
 
 	cons = 0;
-
 
 	while(1)
 	{

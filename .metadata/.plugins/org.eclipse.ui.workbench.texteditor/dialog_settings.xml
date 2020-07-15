@@ -2,20 +2,20 @@
 <section name="Workbench">
 	<section name="org.eclipse.ui.texteditor.FindReplaceDialog">
 		<item value="false" key="isRegEx"/>
-		<item value="Status" key="selection"/>
+		<item value="cons" key="selection"/>
 		<item value="false" key="casesensitive"/>
 		<item value="false" key="incremental"/>
 		<item value="true" key="wrap"/>
 		<item value="false" key="wholeword"/>
 		<list key="findhistory">
+			<item value="cons"/>
+			<item value="servo"/>
 			<item value="status"/>
 			<item value="mode"/>
 			<item value="0A"/>
 			<item value="gyr"/>
 			<item value="config"/>
 			<item value="PAGE"/>
-			<item value="page"/>
-			<item value=","/>
 		</list>
 		<list key="replacehistory">
 			<item value=""/>

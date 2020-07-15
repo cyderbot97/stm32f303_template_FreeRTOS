@@ -4,7 +4,7 @@
 #define Servo_Left_Leg TIM3->CCR2 // PB5
 #define Servo_Right_Hip TIM3->CCR3 //PB0
 #define Servo_Left_Hip TIM3->CCR4 //PB1
-#define Servo_Head TIM1->CCR1 //PA8
+#define Servo_Head TIM16->CCR1 //PA12
 
 #define	RLC	1500	//TIM3->CCR1 = 1520;
 #define	LLC	1500	//TIM3->CCR2 = 1470;
@@ -25,35 +25,27 @@
 #define	Walk_Turn_Stop		( (EventBits_t)( 0x01 <<3) )
 #define Walk_Turn_Right		( (EventBits_t)( 0x01 <<4) )
 #define Walk_Turn_Left		( (EventBits_t)( 0x01 <<5) )
-#define Walk_Imu_Go 		( (EventBits_t)( 0x01 <<6) )
-#define Walk_Imu_Stop		( (EventBits_t)( 0x01 <<7) )
 
 // Kernel objects
 EventGroupHandle_t EventGroupHead;
 EventGroupHandle_t EventGroupWalk;
-
 xSemaphoreHandle xSem_New_Data_Uart;
 xSemaphoreHandle xSem_New_Data_Sonar;
 xSemaphoreHandle xSem_Tag_Found;
 xSemaphoreHandle xSem_Tag_Lost;
 xSemaphoreHandle xSem_Obstacle_Disapear;
 xSemaphoreHandle xSem_Obstacle_Present;
-xSemaphoreHandle xSem_Cons_Ok;
-xSemaphoreHandle xSem_Head_Track_Start;
-xSemaphoreHandle xSem_Head_Track_Stop;
 
 // Functions
 static uint8_t SystemClock_Config(void);
 
 //FreeRTOS Tasks
-void GET_IMU				(void *pvParameters);
-void TASK_CMD_TEST 			(void *pvParameters);
-void MOVE_CONTROL 			(void *pvParameters);
-void HEAD_CONTROL 			(void *pvParameters);
-void DECODE_UART_DATA 		(void *pvParameters);
-void GET_SONAR 				(void *pvParameters);
-void MOVE_CONTROL_IMU 		(void *pvParameters);
-void HEAD_CONTROL_TRACKING 	(void *pvParameters);
+void IMU_DATA_PROCESS	(void *pvParameters);
+void TASK_CMD_TEST 		(void *pvParameters);
+void MOVE_CONTROL 		(void *pvParameters);
+void HEAD_CONTROL 		(void *pvParameters);
+void DECODE_UART_DATA 	(void *pvParameters);
+void GET_SONAR 			(void *pvParameters);
 
 //GLOBAL VARIABLE
 uint8_t rx_dma_buffer[16];
@@ -61,9 +53,9 @@ int sonar_data;
 double roll,pitch,yaw;
 uint8_t mpu_data[6];
 int id_tag, x_tag, y_tag = 0;
-
-float cons;
-
+float yaw_c;
+uint32_t servo;
+int16_t x,y,z;
 int main()
 {
 	//Initialize Clock (64MHz)
@@ -81,9 +73,7 @@ int main()
 	BSP_I2C1_Init();
 	delay_ms(100);
 
-	//Initialize i2c + IMU BNO055
-	BSP_I2C1_Init();
-	delay_ms(100);
+	//Initialize IMU
 	BNO055_Init();
 	delay_ms(100);
 
@@ -105,21 +95,13 @@ int main()
 	xSem_Obstacle_Disapear	= xSemaphoreCreateBinary();
 	xSem_Obstacle_Present	= xSemaphoreCreateBinary();
 
-	xSem_Cons_Ok			= xSemaphoreCreateBinary();
-
-	xSem_Head_Track_Start	= xSemaphoreCreateBinary();
-	xSem_Head_Track_Stop	= xSemaphoreCreateBinary();
-
 	// Create Tasks
-
+	//xTaskCreate(IMU_DATA_PROCESS, "IMU_DATA_PROCESS", 256, NULL, 3, NULL);
 	//xTaskCreate(GET_SONAR, "GET_SONAR", 256, NULL, 2, NULL);
-	xTaskCreate(TASK_CMD_TEST, "TASK_CMD_TEST", 256, NULL, 5, NULL);
-	//xTaskCreate(MOVE_CONTROL, "MOVE_CONTROL", 256, NULL, 2, NULL);
-	xTaskCreate(MOVE_CONTROL_IMU, "MOVE_CONTROL_IMU", 256, NULL, 3, NULL);
-	xTaskCreate(HEAD_CONTROL_TRACKING, "HEAD_CONTROL_TRACKING", 256, NULL, 4, NULL);
-	//xTaskCreate(HEAD_CONTROL, "HEAD_CONTROL", 256, NULL, 2, NULL);
-	xTaskCreate(DECODE_UART_DATA, "DECODE_UART_DATA", 256, NULL, 1, NULL);
-	xTaskCreate(GET_IMU, "GET_IMU", 256, NULL, 1, NULL);
+	xTaskCreate(TASK_CMD_TEST, "TASK_CMD_TEST", 256, NULL, 2, NULL);
+	xTaskCreate(MOVE_CONTROL, "MOVE_CONTROL", 256, NULL, 2, NULL);
+	xTaskCreate(HEAD_CONTROL, "HEAD_CONTROL", 256, NULL, 2, NULL);
+	//xTaskCreate(DECODE_UART_DATA, "DECODE_UART_DATA", 256, NULL, 4, NULL);
 
 	//Start Scheduler
 	my_printf("\r\n Pepi Ready! \r\n");
@@ -128,61 +110,47 @@ int main()
 	//uint8_t rx_data[1];
 
 	//uint8_t err;
-	while(1);
-}
-/*
- *
- */
-void GET_IMU(void *pvParameters){
-	int16_t x,y,z;
-
 	while(1){
 
-		//Get YAW
-		BSP_I2C1_Read(BNO055_ADDRESS_A, BNO055_EULER_H_LSB_ADDR, &mpu_data,2);
+		/*BSP_LED_Toggle();
+		err = BSP_I2C1_Read(BNO055_ADDRESS_A, BNO055_EULER_H_LSB_ADDR, &mpu_data,6);
 		x = (((int16_t)mpu_data[1])<<8) | ((int16_t)mpu_data[0]);
+		y = (((int16_t)mpu_data[3])<<8) | ((int16_t)mpu_data[2]);
+		z = (((int16_t)mpu_data[5])<<8) | ((int16_t)mpu_data[4]);
+		my_printf("x = %d, y = %d, z = %d.\r\n",x/16,y/16,z/16);
 		yaw = ((float)x) / 16.0;
-
-		vTaskDelay(10);
+		pitch = ((float)y) / 16.0;
+		roll = ((float)z) / 16.0;
+		delay_ms(10);*/
 	}
 }
 
+/*
+ * IMU data treatment
+ */
+void IMU_DATA_PROCESS (void *pvParameters)
+{
+
+
+	while(1){
+
+	}
+}
 /*
  * Task Command Test
  */
 void TASK_CMD_TEST(void *pvParameters){
 
-	while(1)
-	{
-		xSemaphoreTake(xSem_Tag_Found,portMAX_DELAY);
-		xSemaphoreGive(xSem_Head_Track_Start);
-		xEventGroupSetBits(EventGroupWalk, Walk_Imu_Go);
-
-		xSemaphoreTake(xSem_Tag_Lost,portMAX_DELAY);
-		xEventGroupSetBits(EventGroupWalk, Walk_Imu_Stop);
-		xSemaphoreGive(xSem_Head_Track_Stop);
-
-
-	}
-
-	while(0){
-		xEventGroupSetBits(EventGroupWalk, Walk_Imu_Go);
+	while(1){
+		xEventGroupSetBits(EventGroupWalk, Walk_Forward);
 		vTaskDelay(portMAX_DELAY);
-		xEventGroupSetBits(EventGroupWalk, Walk_Imu_Stop);
-		vTaskDelay(5000);
+		//vTaskDelay(10000);
 
+		//xEventGroupSetBits(EventGroupWalk, Walk_Stop);
+
+		//vTaskDelay(2000);
 	}
-
-	while(0){
-
-		xSemaphoreTake(xSem_Tag_Found,portMAX_DELAY);
-		xEventGroupSetBits(EventGroupWalk, Walk_Imu_Go);
-		xSemaphoreTake(xSem_Tag_Lost,portMAX_DELAY);
-		xEventGroupSetBits(EventGroupWalk, Walk_Imu_Stop);
-
-	}
-
-	while(0)
+	while(1)
 	{
 		/*
 		 * Recherche et evitement d'obstacle
@@ -266,12 +234,12 @@ void DECODE_UART_DATA(void *pvParameters){
 	uart_init();
 
 	//Set NVIC priority
-
+	/*
 	NVIC_SetPriority(USART1_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY + 1);
-	NVIC_EnableIRQ(USART1_IRQn);
+	NVIC_EnableIRQ(USART1_IRQn);*/
 
 	while(1){
-		xStatus = xSemaphoreTake(xSem_New_Data_Uart, 500);
+		xStatus = xSemaphoreTake(xSem_New_Data_Uart, 300);
 
 		if (xStatus == pdPASS)
 		{
@@ -280,22 +248,13 @@ void DECODE_UART_DATA(void *pvParameters){
 			if(rx_dma_buffer[0]=='$'){
 				switch (rx_dma_buffer[1]) {
 					case 'T':
-						//decodage de la tram
 						sscanf(&rx_dma_buffer[2],"%d,%d,%d",&id_tag,&x_tag,&y_tag);
-
-						//reset du semaphore xSem_Tag_Lost
-						xSemaphoreTake(xSem_Tag_Lost, 0);
-
-						//set du semaphore xSem_Tag_Found
 						xSemaphoreGive(xSem_Tag_Found);
-
-						//Debug
 						//my_printf("\r\n TAG ID = %d, x = %d, y = %d.\r\n", id_tag, x_tag, y_tag);
 						break;
 
 					default:
-						//Debug
-						//my_printf("\r\n Error format\r\n");
+						my_printf("\r\n error TAG data\r\n");
 						break;
 				}
 			}
@@ -316,14 +275,7 @@ void DECODE_UART_DATA(void *pvParameters){
 			USART1->CR1 |= USART_CR1_UE;
 		}
 		else{
-			//Reset du semaphore xSem_Tag_found
-			xSemaphoreTake(xSem_Tag_Found, 0);
-
-			//Set du semaphore xSem_Tag_Lost
 			xSemaphoreGive(xSem_Tag_Lost);
-
-			//Reset id Tag
-			x_tag = 0;
 		}
 
 
@@ -403,7 +355,7 @@ float error_c,integral;
 void MOVE_CONTROL(void *pvParameters){
 
 	float F = 250; //Bascule
-	float R = 90; //Torsion
+	float R = 50; //Torsion
 	float L = 100;
 	float B = 250; //Rot des bras
 
@@ -413,11 +365,9 @@ void MOVE_CONTROL(void *pvParameters){
 
 	EventBits_t uxBits;
 
-	float Kp = 3;
+	float Kp = 0.1;
 	float Ki = 10;
 	float phi = 0;
-
-	float abs_error;
 
 
 	while(1)
@@ -430,30 +380,58 @@ void MOVE_CONTROL(void *pvParameters){
 				Walk_Stop | Walk_Forward | Walk_Backward | Walk_Turn_Left | Walk_Turn_Right | Walk_Turn_Stop,
 				pdFALSE, pdFALSE, 15) == 0)
 		{
+			phi = 3.14/2;
 			signal_cos = (F*cos((t/100)*2.0*3.14));
-			signal_sin = (R*sin((t/100)*2.0*3.14));
-
 			signal_cos_arms = (B*cos((t/100)*2.0*3.14));
+			//signal_cmd = 0;//100*sin((t/100)*2.0*3.14);
 
 			if((uxBits & Walk_Turn_Left) == Walk_Turn_Left)
 			{
-				Servo_Right_Hip = RHC - signal_sin;
-				Servo_Left_Hip = LHC + signal_sin;
+				//Servo_Right_Hip = RHC - signal_sin;
+				//Servo_Left_Hip = LHC + signal_sin;
 			}
 			else if((uxBits & Walk_Turn_Right) == Walk_Turn_Right)
 			{
-				Servo_Right_Hip = RHC + signal_sin;
-				Servo_Left_Hip = LHC - signal_sin;
+				//Servo_Right_Hip = RHC + signal_sin;
+				//Servo_Left_Hip = LHC - signal_sin;
 			}else
 			{
-				Servo_Right_Hip = RHC - signal_sin;
-				Servo_Left_Hip = LHC - signal_sin;
+				BSP_I2C1_Read(BNO055_ADDRESS_A, BNO055_EULER_H_LSB_ADDR, &mpu_data,2);
+				x = (((int16_t)mpu_data[1])<<8) | ((int16_t)mpu_data[0]);
+				yaw = ((float)x) / 16.0;
+
+				if(yaw > 180) yaw = -1 * (360-yaw);
+
+				//PID
+				Kp = 3;
+				error_c = Kp*(0 - yaw);
+
+				/*
+				if(yaw <= 180){
+					error_c = Kp*(0 - yaw);
+				}else{
+					error_c = Kp*(360 - yaw);
+				}
+				*/
+
+				signal_sin_R = ((0+error_c)*sin((t/100)*2.0*3.14));
+				signal_sin_L = ((0-error_c)*sin((t/100)*2.0*3.14));
+
+
+				if(signal_sin_R >  100) signal_sin_R =  100;
+				if(signal_sin_R < -100) signal_sin_R = -100;
+
+				if(signal_sin_L >  100) signal_sin_L =  100;
+				if(signal_sin_L < -150) signal_sin_L = -100;
+
+				Servo_Right_Hip = (uint32_t)(1500 - signal_sin_R);
+				Servo_Left_Hip 	= (uint32_t)(1500 - signal_sin_L);
 			}
 
 			if((uxBits & Walk_Backward) == Walk_Backward)
 			{
-				Servo_Left_Leg = LLC - signal_cos + DF;
-				Servo_Right_Leg = RLC - signal_cos - DF;
+				//Servo_Left_Leg = LLC - signal_cos + DF;
+				//Servo_Right_Leg = RLC - signal_cos - DF;
 			}
 			else
 			{
@@ -496,150 +474,6 @@ void MOVE_CONTROL(void *pvParameters){
 	}
 }
 
-float pos_servo;
-uint32_t cmd;
-
-void HEAD_CONTROL_TRACKING(void *pvParameters){
-
-	float error_track, integral;
-	float kp = 0.8;
-	float ki = 0.1;
-	 // en deg
-
-	uint8_t dt = 10; // en millisecond
-
-	while(1){
-
-		//xSemaphoreTake(xSem_Tag_Found, portMAX_DELAY);
-
-		xSemaphoreTake(xSem_Head_Track_Start, portMAX_DELAY);
-
-
-		//while(xSemaphoreTake(xSem_Tag_Lost, 10) != pdPASS ){
-		while(xSemaphoreTake(xSem_Head_Track_Stop, 10) != pdPASS ){
-
-			error_track = 0 - (x_tag/10); // en deg (/10 pour récupérer la valeur decimal
-			integral = integral + error_track;
-
-			pos_servo = -1*(kp*error_track+ki*integral);
-
-			//if(pos_servo > 60) pos_servo = 60;
-			//if(pos_servo < -60) pos_servo = -60;
-
-			cmd = 1500 - pos_servo*500/60;
-
-			if(cmd>2000) cmd = 2000;
-			if(cmd<1000) cmd = 1000;
-
-			Servo_Head = cmd;
-			cons = yaw + pos_servo + x_tag/10;
-
-			vTaskDelay(dt);
-		}
-		//reset de la position de tête quand on perd le tag
-		Servo_Head = 1500;
-
-		//reset des variables
-		cmd = 1500;
-		error_track = 0;
-		integral = 0;
-
-	}
-
-}
-
-void MOVE_CONTROL_IMU(void *pvParameters){
-
-	float F = 230; //Bascule
-	float R = 50; //Torsion
-	float L = 100;
-	float B = 250; //Rot des bras
-
-	int DF = 30;
-
-	float t = 25; // init a 25 car cos(25*....) = 0 evite le sursaut au demarage
-
-	EventBits_t uxBits;
-
-	float Kp = 2.5;
-
-	float abs_error;
-
-	cons = 0;
-
-
-	while(1)
-	{
-		uxBits = xEventGroupWaitBits(EventGroupWalk, Walk_Imu_Go, pdTRUE, pdFALSE, portMAX_DELAY)&0b01000000;
-
-		while( (xEventGroupWaitBits(EventGroupWalk, Walk_Imu_Stop, pdTRUE, pdFALSE, 15)&0b10000000) == 0)
-		{
-			signal_cos = (F*cos((t/100)*2.0*3.14));
-			signal_cos_arms = (B*cos((t/100)*2.0*3.14));
-
-			if(yaw > 180) yaw = -1 * (360-yaw);
-
-			//--
-			if(cons > 360) cons=cons-360;
-			if(cons < 0) cons=cons+360;
-			abs_error = cons - yaw;
-
-			if(abs_error > 180){
-				error_c = abs_error-360;
-			}else if(abs_error < -180){
-				error_c = abs_error+360;
-			}else{
-				error_c = abs_error;
-			}
-			//--
-
-			if((error_c < 2.5) && (error_c > -2.5)){
-				xSemaphoreGive(xSem_Cons_Ok);
-			}
-
-			signal_sin_R = ((100+Kp*error_c)*sin((t/100)*2.0*3.14));
-			signal_sin_L = ((100-Kp*error_c)*sin((t/100)*2.0*3.14));
-
-
-			if(signal_sin_R >  100) signal_sin_R =  100;
-			if(signal_sin_R < -100) signal_sin_R = -100;
-
-			if(signal_sin_L >  100) signal_sin_L =  100;
-			if(signal_sin_L < -150) signal_sin_L = -100;
-
-
-			Servo_Right_Hip = (uint32_t)(1500 - signal_sin_R);
-			Servo_Left_Hip 	= (uint32_t)(1500 - signal_sin_L);
-			Servo_Left_Leg = LLC + signal_cos + DF;
-			Servo_Right_Leg = RLC + signal_cos - DF;
-
-			t++;
-			if(t>=100) t=0;
-
-		}
-		Servo_Left_Hip  = LHC;
-		Servo_Right_Hip = RHC;
-
-		while((t != 25)&&(t != 75))
-		{
-			signal_cos = (F*cos((t/100)*2.0*3.14));
-			Servo_Left_Leg = LLC + signal_cos + 50;
-			Servo_Right_Leg = RLC + signal_cos - 50;
-
-			t++;
-			if(t>=100){t=0;}
-			vTaskDelay(15);
-		}
-
-		vTaskDelay(500);
-		//On coupe les servo's
-		Servo_Left_Hip 	= 0;
-		Servo_Right_Hip = 0;
-		Servo_Left_Leg 	= 0;
-		Servo_Right_Leg = 0;
-	}
-}
-
 /*
  * 	Clock configuration for the Nucleo STM32F303K8 board
  *
@@ -661,6 +495,7 @@ void MOVE_CONTROL_IMU(void *pvParameters){
  * 	- USE_HSE
  *
  */
+
 
 #ifdef USE_HSI
 

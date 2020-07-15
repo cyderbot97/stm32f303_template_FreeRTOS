@@ -8,6 +8,9 @@
 #include "stdio.h"
 #include "i2c.h"
 #include "imu.h"
+//#include "spi.h"
+//#include "mpu9250.h"
+//#include "MadgwickAHRS.h"
 
 #include "FreeRTOSConfig.h"
 #include "FreeRTOS.h"
