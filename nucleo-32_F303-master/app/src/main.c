@@ -113,13 +113,13 @@ int main()
 	// Create Tasks
 
 	//xTaskCreate(GET_SONAR, "GET_SONAR", 256, NULL, 2, NULL);
-	xTaskCreate(TASK_CMD_TEST, "TASK_CMD_TEST", 256, NULL, 5, NULL);
+	xTaskCreate(TASK_CMD_TEST, "TASK_CMD_TEST", 256, NULL, 6, NULL);
 	//xTaskCreate(MOVE_CONTROL, "MOVE_CONTROL", 256, NULL, 2, NULL);
 	xTaskCreate(MOVE_CONTROL_IMU, "MOVE_CONTROL_IMU", 256, NULL, 3, NULL);
 	xTaskCreate(HEAD_CONTROL_TRACKING, "HEAD_CONTROL_TRACKING", 256, NULL, 4, NULL);
 	//xTaskCreate(HEAD_CONTROL, "HEAD_CONTROL", 256, NULL, 2, NULL);
-	xTaskCreate(DECODE_UART_DATA, "DECODE_UART_DATA", 256, NULL, 1, NULL);
-	xTaskCreate(GET_IMU, "GET_IMU", 256, NULL, 1, NULL);
+	xTaskCreate(DECODE_UART_DATA, "DECODE_UART_DATA", 256, NULL, 4, NULL);
+	xTaskCreate(GET_IMU, "GET_IMU", 256, NULL, 3, NULL);
 
 	//Start Scheduler
 	my_printf("\r\n Pepi Ready! \r\n");
@@ -154,38 +154,25 @@ void TASK_CMD_TEST(void *pvParameters){
 
 	while(1)
 	{
+		//On attend la detection d'un tag
 		xSemaphoreTake(xSem_Tag_Found,portMAX_DELAY);
+		//On track le Tag avec la tête et on demare la marche
 		xSemaphoreGive(xSem_Head_Track_Start);
 		xEventGroupSetBits(EventGroupWalk, Walk_Imu_Go);
 
+		//On attend la perte du Tag
 		xSemaphoreTake(xSem_Tag_Lost,portMAX_DELAY);
+		//On ne track plus le Tag avec la tête et on stop la marche
 		xEventGroupSetBits(EventGroupWalk, Walk_Imu_Stop);
 		xSemaphoreGive(xSem_Head_Track_Stop);
 
 
 	}
 
-	while(0){
-		xEventGroupSetBits(EventGroupWalk, Walk_Imu_Go);
-		vTaskDelay(portMAX_DELAY);
-		xEventGroupSetBits(EventGroupWalk, Walk_Imu_Stop);
-		vTaskDelay(5000);
-
-	}
-
-	while(0){
-
-		xSemaphoreTake(xSem_Tag_Found,portMAX_DELAY);
-		xEventGroupSetBits(EventGroupWalk, Walk_Imu_Go);
-		xSemaphoreTake(xSem_Tag_Lost,portMAX_DELAY);
-		xEventGroupSetBits(EventGroupWalk, Walk_Imu_Stop);
-
-	}
-
 	while(0)
 	{
 		/*
-		 * Recherche et evitement d'obstacle
+		 * Recherche et evitement d'obstacle #BARBARE
 		 */
 		xEventGroupSetBits(EventGroupWalk, Walk_Forward);
 		xSemaphoreTake(xSem_Obstacle_Present,portMAX_DELAY);

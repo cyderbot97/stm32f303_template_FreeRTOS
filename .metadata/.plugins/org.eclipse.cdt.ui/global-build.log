@@ -1,4 +1,4 @@
-17:18:54 **** Incremental Build of configuration Debug for project nucleo-32_F303-master ****
+14:10:04 **** Incremental Build of configuration Debug for project nucleo-32_F303-master ****
 Info: Internal Builder is used for build
 arm-atollic-eabi-gcc -c ..\app\src\main.c -mthumb -mcpu=cortex-m4 -mfloat-abi=hard -mfpu=fpv4-sp-d16 -std=gnu11 -DSTM32F303x8 -DUSE_HSI -IC:\Users\cyril\Documents\GitHub\stm32f303_template_FreeRTOS\nucleo-32_F303-master\app\inc -IC:\Users\cyril\Documents\GitHub\stm32f303_template_FreeRTOS\nucleo-32_F303-master\FreeRTOS\Source\include -IC:\Users\cyril\Documents\GitHub\stm32f303_template_FreeRTOS\nucleo-32_F303-master\FreeRTOS\Source\portable\GCC\ARM_CM4F -IC:\Users\cyril\Documents\GitHub\stm32f303_template_FreeRTOS\nucleo-32_F303-master\bsp\inc -IC:\Users\cyril\Documents\GitHub\stm32f303_template_FreeRTOS\nucleo-32_F303-master\cmsis\core -IC:\Users\cyril\Documents\GitHub\stm32f303_template_FreeRTOS\nucleo-32_F303-master\cmsis\device\inc -O0 -g -fstack-usage -Wall -specs=nano.specs -o app\src\main.o 
 ..\app\src\main.c: In function 'GET_IMU':
@@ -17,7 +17,7 @@ C:\Users\cyril\Documents\GitHub\stm32f303_template_FreeRTOS\nucleo-32_F303-maste
   int16_t x,y,z;
             ^
 ..\app\src\main.c: In function 'DECODE_UART_DATA':
-..\app\src\main.c:284:14: warning: pointer targets in passing argument 1 of 'sscanf' differ in signedness [-Wpointer-sign]
+..\app\src\main.c:271:14: warning: pointer targets in passing argument 1 of 'sscanf' differ in signedness [-Wpointer-sign]
        sscanf(&rx_dma_buffer[2],"%d,%d,%d",&id_tag,&x_tag,&y_tag);
               ^
 In file included from c:\program files (x86)\atollic\truestudio for stm32 9.3.0\armtools\arm-atollic-eabi\include\sys\reent.h:13:0,
@@ -28,29 +28,29 @@ c:\program files (x86)\atollic\truestudio for stm32 9.3.0\armtools\arm-atollic-e
  int _EXFUN(sscanf, (const char *__restrict, const char *__restrict, ...)
      ^
 ..\app\src\main.c: In function 'MOVE_CONTROL':
-..\app\src\main.c:420:8: warning: unused variable 'abs_error' [-Wunused-variable]
+..\app\src\main.c:407:8: warning: unused variable 'abs_error' [-Wunused-variable]
   float abs_error;
         ^~~~~~~~~
-..\app\src\main.c:418:8: warning: unused variable 'phi' [-Wunused-variable]
+..\app\src\main.c:405:8: warning: unused variable 'phi' [-Wunused-variable]
   float phi = 0;
         ^~~
-..\app\src\main.c:417:8: warning: unused variable 'Ki' [-Wunused-variable]
+..\app\src\main.c:404:8: warning: unused variable 'Ki' [-Wunused-variable]
   float Ki = 10;
         ^~
-..\app\src\main.c:416:8: warning: unused variable 'Kp' [-Wunused-variable]
+..\app\src\main.c:403:8: warning: unused variable 'Kp' [-Wunused-variable]
   float Kp = 3;
         ^~
-..\app\src\main.c:407:8: warning: unused variable 'L' [-Wunused-variable]
+..\app\src\main.c:394:8: warning: unused variable 'L' [-Wunused-variable]
   float L = 100;
         ^
 ..\app\src\main.c: In function 'MOVE_CONTROL_IMU':
-..\app\src\main.c:562:14: warning: variable 'uxBits' set but not used [-Wunused-but-set-variable]
+..\app\src\main.c:549:14: warning: variable 'uxBits' set but not used [-Wunused-but-set-variable]
   EventBits_t uxBits;
               ^~~~~~
-..\app\src\main.c:555:8: warning: unused variable 'L' [-Wunused-variable]
+..\app\src\main.c:542:8: warning: unused variable 'L' [-Wunused-variable]
   float L = 100;
         ^
-..\app\src\main.c:554:8: warning: unused variable 'R' [-Wunused-variable]
+..\app\src\main.c:541:8: warning: unused variable 'R' [-Wunused-variable]
   float R = 50; //Torsion
         ^
 arm-atollic-eabi-gcc -o nucleo-32_F303-master.elf .metadata\.plugins\org.eclipse.cdt.make.core\specs.o FreeRTOS\Source\croutine.o FreeRTOS\Source\event_groups.o FreeRTOS\Source\list.o FreeRTOS\Source\portable\GCC\ARM_CM4F\port.o FreeRTOS\Source\portable\MemMang\heap_1.o FreeRTOS\Source\queue.o FreeRTOS\Source\stream_buffer.o FreeRTOS\Source\tasks.o FreeRTOS\Source\timers.o app\src\main.o app\src\printf-stdarg.o app\src\stm32f3xx_it.o bsp\src\bsp.o bsp\src\delay.o bsp\src\i2c.o bsp\src\imu.o cmsis\device\src\startup_stm32f303x8.o cmsis\device\src\system_stm32f3xx.o -mthumb -mcpu=cortex-m4 -mfloat-abi=hard -mfpu=fpv4-sp-d16 -TC:\Users\cyril\Documents\GitHub\stm32f303_template_FreeRTOS\nucleo-32_F303-master\STM32F303K8Tx_FLASH.ld -specs=nosys.specs -static -Wl,-cref,-u,Reset_Handler -Wl,-Map=nucleo-32_F303-master.map -Wl,--defsym=malloc_getpagesize_P=0x80 -Wl,--start-group -lc -lm -Wl,--end-group -specs=nano.specs 
